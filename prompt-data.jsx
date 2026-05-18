@@ -239,7 +239,16 @@ Use recurring symbolic objects, light direction, or color motifs that subtly evo
 Lighting is automatically chosen per panel to match the story beat.
 Art direction: cinematic watercolor with natural water bleeding and soft color gradients, shallow depth of field, sharp clear focal subjects against soft painterly out-of-focus backgrounds.`;
 
+const IMAGE_RULES_KO = [
+  "그림 위에 글자·텍스트 일체 금지 — 제목·자막·서명·워터마크·로고·숫자·기호 모두 없음",
+  "명언/구절을 글자로 쓰지 말 것 — 의미는 오직 상징·구도·빛·색·표정으로만 전달",
+  "1:1 상징 일러스트 — 한 장의 회화적 이미지, 액자·여백 텍스트 없음"
+];
+
+const IMAGE_RULES = `IMAGE-ONLY, ABSOLUTELY NO TEXT: there must be no text of any kind anywhere in the image — no letters, no words, no title, no caption, no subtitle, no quote text, no calligraphy, no signature, no watermark, no logo, no numbers, no symbols-as-text, no UI, no frame labels. Do NOT render the philosophical quote as written words. The meaning must be conveyed purely through symbolic objects, composition, color, light and shadow, and facial/body expression. A single painterly symbolic illustration with clean edges and no bordering text.`;
+
 Object.assign(window, {
   CHARACTERS, BACKGROUNDS, TIMES, MOODS, WEATHERS, LIGHTINGS,
-  CAMERA_VIEWS, FOCUS_PRESETS, ART_STYLES, RATIOS, COMIC_RULES, COMIC_RULES_KO
+  CAMERA_VIEWS, FOCUS_PRESETS, ART_STYLES, RATIOS,
+  COMIC_RULES, COMIC_RULES_KO, IMAGE_RULES, IMAGE_RULES_KO
 });

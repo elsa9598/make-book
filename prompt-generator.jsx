@@ -109,6 +109,9 @@ function buildImagePrompt(s) {
   const lines = [];
   const charsBy = (id) => window.CHARACTERS.find(c => c.id === id);
 
+  // 이미지 위 글자 일체 금지 (자동·최우선 포함)
+  lines.push(`[IMAGE RULES]\n${window.IMAGE_RULES}`);
+
   // 화풍
   if (s.artStyle) {
     const style = window.ART_STYLES.find(a => a.id === s.artStyle);
@@ -421,6 +424,21 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
           {!isComic && (
             <PromptSection title="출력 비율">
               <SingleSelect options={window.RATIOS} value={ratio} onChange={setRatio} />
+            </PromptSection>
+          )}
+
+          {!isComic && (
+            <PromptSection title="규칙 (자동 포함)" subtitle="이미지 위 글자·텍스트 일체 금지 — 의미는 상징·구도·빛으로만">
+              <div className="rule-card">
+                <ol className="rule-list">
+                  {window.IMAGE_RULES_KO.map((rule, i) => (
+                    <li key={i}>{rule}</li>
+                  ))}
+                </ol>
+                <div className="rule-foot">
+                  ※ 위 규칙은 영어로 변환되어 최종 프롬프트의 <code>[IMAGE RULES]</code> 섹션에 자동 포함됩니다.
+                </div>
+              </div>
             </PromptSection>
           )}
 
