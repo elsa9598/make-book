@@ -55,6 +55,72 @@ function App() {
   useEffect(() => { window.QuoteLedger.save(ledger); }, [ledger]);
   useEffect(() => { window.QuoteLedger.bookNoSave(bookNo); }, [bookNo]);
 
+  // ───────── 자동 저장 (IndexedDB) — 새로고침·재부팅에도 글·그림 보존 ─────────
+  const hydrated = React.useRef(false);
+  const saveTimer = React.useRef(null);
+  const [savedAt, setSavedAt] = useStateApp(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!window.ArtbookStore) { hydrated.current = true; return; }
+      const snap = await window.ArtbookStore.get("workspace");
+      if (alive && snap && typeof snap === "object") {
+        if (snap.completed) setCompleted(snap.completed);
+        if (snap.coverImg) setCoverImg(snap.coverImg);
+        if (snap.backImg) setBackImg(snap.backImg);
+        if (snap.savedAt) setSavedAt(snap.savedAt);
+      }
+      hydrated.current = true;
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated.current || !window.ArtbookStore) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      const now = new Date();
+      const ts = now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+      const snap = { completed, coverImg, backImg, savedAt: ts };
+      const ok = await window.ArtbookStore.set("workspace", snap);
+      if (ok) setSavedAt(ts);
+
+      // 페이지별 백업 누적 — 명세 파일명 규칙: NNN_a(왼쪽) / NNN_b(오른쪽)
+      // 스프레드 1개 = 2페이지: 왼쪽=4컷+글, 오른쪽=상징 이미지
+      try {
+        const stamp = now.toLocaleString("ko-KR");
+        const backups = (await window.ArtbookStore.get("page_backups")) || {};
+        const pad = n => String(n).padStart(3, "0");
+        const pushPage = (file, page, sig, data) => {
+          const arr = backups[file] || [];
+          if (!arr.length || arr[0].sig !== sig) {
+            arr.unshift({ at: stamp, page, file, sig, data });
+            backups[file] = arr.slice(0, 20); // 페이지당 최근 20개
+          }
+        };
+        Object.keys(completed).forEach(idx => {
+          const d = completed[idx] || {};
+          const sp = window.BOOK_SPREADS[idx];
+          if (!sp) return;
+          const aFile = pad(sp.leftPage) + "_a";   // 왼쪽 페이지
+          const bFile = pad(sp.rightPage) + "_b";  // 오른쪽 페이지
+          // 왼쪽(_a): 본문 글 + 4컷 이미지
+          pushPage(aFile, sp.leftPage,
+            (d.body || "").length + "|" + (d.body || "").slice(0, 40) + "|" + (d.comicImg ? "C" : "-"),
+            { body: d.body || "", comicImg: d.comicImg || null, comicFile: d.comicFile || null,
+              topic: d.topic, category: d.category, quote: d.quote, book: d.book });
+          // 오른쪽(_b): 상징 일러스트
+          pushPage(bFile, sp.rightPage,
+            (d.illustImg ? "I" : "-") + "|" + (d.illustFile || ""),
+            { illustImg: d.illustImg || null, illustFile: d.illustFile || null,
+              topic: d.topic, category: d.category, quote: d.quote, book: d.book });
+        });
+        await window.ArtbookStore.set("page_backups", backups);
+      } catch (e) { /* 백업 실패는 본 저장에 영향 주지 않음 */ }
+    }, 700);
+  }, [completed, coverImg, backImg]);
+
   // Tweaks
   const [tweakValues, setTweak] = window.useTweaks(TWEAK_DEFAULTS);
 
@@ -158,6 +224,46 @@ function App() {
         topic, category, quote, book: bookNo
       }
     });
+    // 페이지별 폴더로 실제 파일 저장 (서버로 열렸을 때만): pages/<권>/<NNN_a>/...
+    if (location.protocol === "http:" || location.protocol === "https:") {
+      const pad = n => String(n).padStart(3, "0");
+      const splitDataUrl = (u) => {
+        if (!u || u.indexOf(",") < 0) return null;
+        const m = /data:image\/(\w+)/.exec(u);
+        return { ext: m ? m[1].replace("jpeg", "jpg") : "jpg", b64: u.split(",")[1] };
+      };
+      const aId = pad(sp.leftPage) + "_a";
+      const bId = pad(sp.rightPage) + "_b";
+      const aImg = splitDataUrl(comicImg);
+      const bImg = splitDataUrl(illustImg);
+      const payload = {
+        book: String(bookNo).padStart(2, "0") + "권",
+        pages: [
+          {
+            id: aId,
+            files: [
+              { name: aId + ".txt", text: quote.trim() + "\n\n" + body },
+              ...(aImg ? [{ name: aId + "." + aImg.ext, b64: aImg.b64 }] : [])
+            ]
+          },
+          {
+            id: bId,
+            files: bImg ? [{ name: bId + "." + bImg.ext, b64: bImg.b64 }] : []
+          }
+        ]
+      };
+      fetch(location.origin + "/save-page", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }).then(r => r.json()).then(j => {
+        if (j && j.ok) {
+          setToast({ kind: "ok", text: `📁 페이지 저장 — ${j.root}\n${(j.written || []).join(", ")}` });
+          setTimeout(() => setToast(null), 4000);
+        }
+      }).catch(e => console.warn("[save-page] 실패:", e.message));
+    }
+
     setToast({
       kind: "ok",
       text: `✦ ${bookNo}권 본문#${String(Math.max(1, currentSpread - 3)).padStart(2,"0")} 완성 — pp.${sp.leftPage}–${sp.rightPage} · 명언 사용 대장에 기록됨`
@@ -195,6 +301,9 @@ function App() {
           </label>
           <span>완성 {Object.keys(completed).length}/24</span>
           <span>대장 {window.QuoteLedger.topicUsedCount(ledger, topic)}/{window.QuoteLedger.TARGET_PER_TOPIC}</span>
+          <span title="새로고침·재부팅에도 보존 (IndexedDB, 백업본 5개 유지)">
+            {savedAt ? `자동저장 ${savedAt}` : "자동저장 대기"}
+          </span>
           <div className="topic-chip">
             <span className="dot"></span>
             {window.TOPICS[topic].nameKo} · {window.TOPICS[topic].name}

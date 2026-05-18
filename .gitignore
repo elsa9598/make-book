@@ -9,6 +9,8 @@ secrets*.json
 *.log
 server.out
 tasks/
+pdf/
+pages/
 
 # OS / 에디터
 Thumbs.db

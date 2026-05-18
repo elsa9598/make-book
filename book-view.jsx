@@ -285,8 +285,30 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
         doc.addImage(img, "JPEG", 0, 0, W, H);
       }
       const d = new Date();
-      const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
-      doc.save("아트북_" + (T ? T.nameKo : "book") + "_" + stamp + ".pdf");
+      const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0")
+        + "_" + String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
+      const fname = "아트북_" + (T ? T.nameKo : "book") + "_" + stamp + ".pdf";
+
+      // 서버로 열렸으면 make_book/pdf 폴더에 저장, 아니면 브라우저 다운로드 폴백
+      let savedToFolder = false;
+      if (location.protocol === "http:" || location.protocol === "https:") {
+        try {
+          const b64 = doc.output("datauristring").split(",")[1];
+          const r = await fetch(location.origin + "/save-pdf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: fname, data: b64 })
+          });
+          const j = await r.json();
+          if (j && j.ok) {
+            savedToFolder = true;
+            alert("PDF 저장 완료\n" + j.path + "\n(" + Math.round(j.bytes / 1024) + " KB)");
+          }
+        } catch (e) {
+          console.warn("[pdf] 폴더 저장 실패 → 다운로드로 전환:", e.message);
+        }
+      }
+      if (!savedToFolder) doc.save(fname);
     } catch (e) {
       console.error("[pdf] 생성 실패:", e);
       alert("PDF 생성 중 오류가 발생했습니다. 콘솔을 확인하세요.");

@@ -42,9 +42,73 @@ function proxyOllama(req, res) {
   });
 }
 
+// PDF 저장 — 브라우저가 보낸 PDF를 make_book/pdf 폴더에 기록
+function savePdf(req, res) {
+  let body = "";
+  req.on("data", c => { body += c; if (body.length > 80e6) req.destroy(); });
+  req.on("end", () => {
+    try {
+      const j = JSON.parse(body);
+      let name = String(j.filename || "artbook.pdf").replace(/[^\w.\-가-힣]+/g, "_");
+      if (!name.toLowerCase().endsWith(".pdf")) name += ".pdf";
+      const dir = path.join(ROOT, "pdf");
+      fs.mkdirSync(dir, { recursive: true });
+      const buf = Buffer.from(String(j.data || ""), "base64");
+      const full = path.join(dir, name);
+      fs.writeFileSync(full, buf);
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: true, path: full, bytes: buf.length }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  });
+}
+
+// 페이지 파일 저장 — make_book/pages/<권>/NNN_a.jpg|.txt, NNN_b.jpg
+function savePage(req, res) {
+  let body = "";
+  req.on("data", c => { body += c; if (body.length > 80e6) req.destroy(); });
+  req.on("end", () => {
+    try {
+      const j = JSON.parse(body);
+      const safe = s => String(s || "").replace(/[^\w.\-가-힣]+/g, "_");
+      const book = safe(j.book || "기타").slice(0, 40);   // 예: 01권
+      const written = [];
+      // 페이지마다 독립 폴더: pages/<권>/<NNN_a>/...
+      (j.pages || []).forEach(pg => {
+        const id = safe(pg.id).slice(0, 40);              // 예: 009_a
+        if (!id) return;
+        const dir = path.join(ROOT, "pages", book, id);
+        fs.mkdirSync(dir, { recursive: true });
+        (pg.files || []).forEach(f => {
+          const name = safe(f.name);
+          if (!name) return;
+          const full = path.join(dir, name);
+          if (typeof f.text === "string") fs.writeFileSync(full, f.text, "utf8");
+          else if (f.b64) fs.writeFileSync(full, Buffer.from(f.b64, "base64"));
+          else return;
+          written.push(path.join("pages", book, id, name));
+        });
+      });
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: true, root: path.join(ROOT, "pages", book), written }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  });
+}
+
 const server = http.createServer((req, res) => {
   if (req.url.split("?")[0] === "/ollama/chat" && req.method === "POST") {
     return proxyOllama(req, res);
+  }
+  if (req.url.split("?")[0] === "/save-pdf" && req.method === "POST") {
+    return savePdf(req, res);
+  }
+  if (req.url.split("?")[0] === "/save-page" && req.method === "POST") {
+    return savePage(req, res);
   }
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath === "/") urlPath = "/index.html";
