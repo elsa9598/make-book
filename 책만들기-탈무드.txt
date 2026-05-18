@@ -1,0 +1,137 @@
+qwen2.5:14b 로컬 모델 풀 (백그라운드)가동-한자·일본어 검출 시 자동으로 최대 4회 재생성 + 섞인 줄 제거 로직
+아트북,그래픽노블,감성 철학집 느낌이야.
+주제(탈무드,니체,쇼펜하우어)중에 선택 후 카테고리와 선택된 스토리 명언구절을 입력.
+로컬 모델이 20줄 이내로 글을 써 주는거야 (위의 주제에 대해서 철학의 내용을 이해하기 쉽게 분석해서 설명해 주고 스토리로 예시를 들어 준다.)
+아트북으로 철학을 누구든지 쉽고 재미있게 접근하게 하기 위한 목적의 책이야.
+책 자동 조립기(PDF 실시간 연동)-컨텐츠 제작 폴더 검색(4컷만화, 글, 이미지)
+아래 구조로 책을 인쇄하기 쉽게 만들어 주는거야. 미리보기 기능도 만들어.
+
+책구조는 스프레드 단위야
+┌────────────────────┬────────────────────┐
+│                    │                    │
+│ 9:16      글       │   상징 일러스트      │
+│ 4컷       작       │                    │
+│           성       │   (1:1 이미지)      │
+│                    │                    │
+└────────────────────┴────────────────────┘
+
+페이지   파일명
+   1    001_a :1페이지의 왼쪽 페이지
+   2    002_b :2페이지의 오른쪽 페이지
+   3    003_a :3페이지의 왼쪽 페이지
+   .        .
+   .        .
+   .        .
+       a(왼쪽), b(오른쪽)
+
+스프레드 하나 완성되면 "MAKE" 버튼을 눌러게 해줘.
+예를 들어 5페이지 6페이지 에 005_a,006_b  를 컨텐츠 제작 폴더에서 찾아서 위 구조로 스프레드를 만드는거야.
+총 페이지 60페이지 작품은 24개
+| 구성       | 페이지 |
+| ------    | --- |
+| 표지       | 1   |
+| 프롤로그    | 3   |
+| 챕터 타이틀 | 4   |
+| 본문       | 48  |---9페이지 부터
+| 에필로그    | 4   |
+
+
+본문작성 폼박스 아래에 프롬프트 생성기 버튼을 2개 만들어줘.
+하나는------->이미지생성 프롬프트 페이지 링크 버튼-해당 페이지 이동
+-페이지 구성:
+*캐릭터 선택 버튼 구성*
+ 복수 선택 가능(상추,배추,열무,까미,김치,드니로,엘사,정만)
+규칙:(캐릭터 외모 일관성을 유지한다.)중요
+==================================================
+CHARACTER_PRESETS
+==================================================
+상추 / Sangchu:
+Old English Sheepdog, large and sturdy 35kg heavy-set breed, entire head and both ears must be 100% pure solid white without any gray markings, white fluffy chest and white front legs, dark charcoal gray fur starting strictly from the shoulders and covering the back and hindquarters, very cute big round gentle puppy eyes with heterochromia: one soft brown eye and one soft blue eye, sparkling kind expression, rounded fluffy muzzle, large soft body, thick shaggy fur texture, the tail is entirely solid dark charcoal gray, very short and stubby, absolutely no white color at the tip, gentle loyal protector personality.
+열무 / Yeolmu:
+Papillon dog, small and dainty 5kg toy breed, brown and white fur pattern, very large butterfly-shaped ears with long brown ear fur and soft feathered edges, warm brown round expressive eyes, white blaze running down the center of the face, white muzzle, white chest and belly, brown patches on the face and body, fluffy curled tail with white and brown fur, elegant tiny body, gentle cheerful expression, cute refined cartoon style.
+배추 / Baechu:
+American Cocker Spaniel, medium-sized 15kg dog, golden beige and cream silky wavy fur, long floppy ears with thick flowing wavy curls, large warm gentle brown eyes, small rounded brown-black nose, sweet innocent smiling expression, fluffy cream chest fur, rounded forehead, soft golden tan coloring throughout the body, short soft tail, plush cute cartoon proportions, warm friendly personality.
+드니로 / Dniro:
+Male human character, height 178cm, weight 70kg, young adult appearance in soft Ghibli-inspired animation style, dark brown short straight hair parted naturally, calm gentle face, soft warm eyes, straight eyebrows, natural relaxed expression, slim-to-average build, casual light gray hoodie or simple everyday clothes, jeans or casual pants, relaxed confident posture, kind and quiet atmosphere.
+엘사 / Elsa:
+Female human character, height 167cm, weight 55kg, young adult woman in soft Ghibli-inspired animation style, medium-length dark brown slightly wavy bob hair, warm smiling face, soft brown eyes, gentle curved eyebrows, natural soft facial features, approachable calm expression, slim natural build, casual gray hoodie or simple everyday clothing, warm thoughtful mood, friendly emotional presence.
+까미 / Ggami:
+Gray tuxedo cat, dark charcoal gray body with white chest and white belly, round face with dark charcoal gray mask pattern over the head and around the eyes, white muzzle area, distinctive thick black mustache marking above the mouth, sharp yellow amber half-lidded eyes with intense tsundere gaze, small pink heart-shaped nose, pink inner ears, pink heart-shaped paw pads, compact muscular body, long dark gray tail, grumpy exterior but secretly caring personality, bold clean cartoon line style.
+정만 / Jeongman:
+Female human character, height 172cm, weight 60kg, young adult woman in soft Ghibli-inspired watercolor animation style, long flowing black wavy hair, distinctive round black glasses, warm gentle smile, kind thoughtful eyes behind the glasses, natural elegant face, slim-to-average build, blue or earth-tone casual outdoor clothing, nature-loving intellectual atmosphere, calm confident posture, soft wind-blown hair, warm countryside mood.
+김치 / Gimchi:
+Scottish Fold cat, all white fluffy coat, distinctive folded flat ears pressed close to a very round chubby head, sharp yellow amber half-lidded eyes with perpetually grumpy stern expression, small pink heart-shaped nose, tiny freckles near the nose, short whisker lines, plump round chubby body, short stubby legs, soft rounded paws, thick fluffy tail, always looks displeased and unimpressed, minimalist clean cartoon style.
+======>복수 선택 가능, 추가 입력 폼 생성후 함께 이미지 생성 영어 프롬프트에 반영.
+
+*배경 선택 버튼*
+AI 배경 생성 :500가지 - 복수 선택 가능, 추가 입력 폼 생성후 함께 이미지 생성 영어 프롬프트에 반영.
+
+*시간대 선택 버튼*
+AI 생성:종류별로 전부 생성 - 복수 선택 가능, 추가 입력 폼 생성후 함께 이미지 생성 영어 프롬프트에 반영.
+
+*분위기 선택 버튼*
+AI 생성:100가지 - 복수 선택 가능, 추가 입력 폼 생성후 함께 이미지 생성 영어 프롬프트에 반영.
+
+*날씨 선택 버튼*
+AI 생성:100가지 - 복수 선택 가능, 추가 입력 폼 생성후 함께 이미지 생성 영어 프롬프트에 반영.
+
+*조명 빛 선택 버튼*
+AI 생성:종류별로 전부 생성 - 복수 선택 가능, 추가 입력 폼 생성후 함께 이미지 생성 영어 프롬프트에 반영.
+
+*카메라뷰 선택 버튼*
+AI 생성:종류별로 전부 생성 - 복수 선택 가능, 추가 입력 폼 생성후 함께 이미지 생성 영어 프롬프트에 반영.
+
+*포커싱과 아웃포커싱 선택*
+선택된 캐릭터들...배경-->어떤 것을 포커싱하고 아웃포커싱 할 건지 선택.
+
+*화풍 선택 버튼*
+1.마띠에르,임파스토,나이프로 그린 입체감있는 거친 질감의 유화풍
+2.물번짐,자연스런 경계와 그라데이션의 붓터치 수채화풍
+3.시네마틱 수채화 포커싱과 아웃포커싱이 확실한 화풍
+4.지브리 감성의 화풍
+5.포스트 인상주의 감정의 화풍
+
+*출력 비율 선택 버튼"
+1:1, 3:2, 7,5, 16:9, 9:16, 5:7, 2:3 
+
+###앞 페이지에서 선택한 해당 철학의 카테고리와 명언/구절, 본문 작성에 씌여진 최종 내용을 이미지 생성 영어 프롬프트에 반영해줘. 
+[최종 영어 프롬프트 복사하기]
+--------------------------------------------------------------------------------------------------------------
+두번째는 ------------>4컷만화 프롬프트 페이지 링크 버튼
+해당 페이지 이동
+-페이지 구성: 이미지 생성이랑 동일.
+*캐릭터 선택 버튼 구성*
+ 복수 선택 가능(상추,배추,열무,까미,김치,드니로,엘사,정만)
+규칙:(캐릭터 외모 일관성을 유지한다.)중요
+==================================================
+CHARACTER_PRESETS
+==================================================
+상추 / Sangchu:
+Old English Sheepdog, large and sturdy 35kg heavy-set breed, entire head and both ears must be 100% pure solid white without any gray markings, white fluffy chest and white front legs, dark charcoal gray fur starting strictly from the shoulders and covering the back and hindquarters, very cute big round gentle puppy eyes with heterochromia: one soft brown eye and one soft blue eye, sparkling kind expression, rounded fluffy muzzle, large soft body, thick shaggy fur texture, the tail is entirely solid dark charcoal gray, very short and stubby, absolutely no white color at the tip, gentle loyal protector personality.
+열무 / Yeolmu:
+Papillon dog, small and dainty 5kg toy breed, brown and white fur pattern, very large butterfly-shaped ears with long brown ear fur and soft feathered edges, warm brown round expressive eyes, white blaze running down the center of the face, white muzzle, white chest and belly, brown patches on the face and body, fluffy curled tail with white and brown fur, elegant tiny body, gentle cheerful expression, cute refined cartoon style.
+배추 / Baechu:
+American Cocker Spaniel, medium-sized 15kg dog, golden beige and cream silky wavy fur, long floppy ears with thick flowing wavy curls, large warm gentle brown eyes, small rounded brown-black nose, sweet innocent smiling expression, fluffy cream chest fur, rounded forehead, soft golden tan coloring throughout the body, short soft tail, plush cute cartoon proportions, warm friendly personality.
+드니로 / Dniro:
+Male human character, height 178cm, weight 70kg, young adult appearance in soft Ghibli-inspired animation style, dark brown short straight hair parted naturally, calm gentle face, soft warm eyes, straight eyebrows, natural relaxed expression, slim-to-average build, casual light gray hoodie or simple everyday clothes, jeans or casual pants, relaxed confident posture, kind and quiet atmosphere.
+엘사 / Elsa:
+Female human character, height 167cm, weight 55kg, young adult woman in soft Ghibli-inspired animation style, medium-length dark brown slightly wavy bob hair, warm smiling face, soft brown eyes, gentle curved eyebrows, natural soft facial features, approachable calm expression, slim natural build, casual gray hoodie or simple everyday clothing, warm thoughtful mood, friendly emotional presence.
+까미 / Ggami:
+Gray tuxedo cat, dark charcoal gray body with white chest and white belly, round face with dark charcoal gray mask pattern over the head and around the eyes, white muzzle area, distinctive thick black mustache marking above the mouth, sharp yellow amber half-lidded eyes with intense tsundere gaze, small pink heart-shaped nose, pink inner ears, pink heart-shaped paw pads, compact muscular body, long dark gray tail, grumpy exterior but secretly caring personality, bold clean cartoon line style.
+정만 / Jeongman:
+Female human character, height 172cm, weight 60kg, young adult woman in soft Ghibli-inspired watercolor animation style, long flowing black wavy hair, distinctive round black glasses, warm gentle smile, kind thoughtful eyes behind the glasses, natural elegant face, slim-to-average build, blue or earth-tone casual outdoor clothing, nature-loving intellectual atmosphere, calm confident posture, soft wind-blown hair, warm countryside mood.
+김치 / Gimchi:
+Scottish Fold cat, all white fluffy coat, distinctive folded flat ears pressed close to a very round chubby head, sharp yellow amber half-lidded eyes with perpetually grumpy stern expression, small pink heart-shaped nose, tiny freckles near the nose, short whisker lines, plump round chubby body, short stubby legs, soft rounded paws, thick fluffy tail, always looks displeased and unimpressed, minimalist clean cartoon style.
+======>복수 선택 가능, 추가 입력 폼 생성후 함께 이미지 생성 영어 프롬프트에 반영.
+4컷만화 구성 규칙:
+-조명:스토리에 맞춘 AI 자동 구성
+-예술 스타일 : 수채화 감성 시네마틱 화풍으로 물번짐과 자연스러운 그라데이션으로 얕은 심도의 화풍. 포커싱과 아웃포커싱이 확실한 화풍으로 그려줘.
+-선택된 스토리는 전개-발단-위기-결말로 구성하되 직역이 아닌 의역으로 명언/구절이 잘 드러나도록 4컷카툰으로 구성.
+-1컷 부터 4컷을 한장으로 세로로 구성하되 9:16 비율로 생성하고 각 컷마다 일정한 흰색의 테두리를 만들어줘.
+-1컷 부터 4컷 중 하나의 컷을 렌덤으로 선택해서 세로로 2등분할해서 2등분한 것의 우측 컷은 클로즈뷰로 구성.
+-1컷 부터 4컷 의 카메라뷰는 중복 되지 않도록 다양하고 다이나믹하게 구성.(버드아이뷰,전신뷰,미디엄뷰,후면뷰,정면뷰,로우앵글뷰,투시뷰,클로즈뷰,와이드뷰,아이소메트릭뷰,측면뷰 등등)
+-포커싱과 아웃포커싱으로 각 컷을 명언/구절의 의미 전달력을 높이고 설득력있게 연출해줘.
+-1컷 부터 4컷 에 나오는 캐릭터의 외모는 일관성이 있도록 구성하되 각 컷마다 감정 표정을 풍부하게 하고 다양한 포즈로 연출.
+
+###앞 페이지에서 선택한 해당 철학의 카테고리와 명언/구절, 본문 작성에 씌여진 최종 내용을 4컷만화 생성 영어 프롬프트에 반영해줘. 
+[최종 영어 프롬프트 복사하기]

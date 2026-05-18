@@ -1,0 +1,174 @@
+/* quotes-styles.css — 명언 picker + 사용 현황 */
+
+/* 헤더의 시리즈 권 선택 */
+.book-select {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-ui); font-size: 12px; color: var(--ink-muted);
+}
+.book-select select {
+  font-family: var(--font-mono); font-size: 12px;
+  background: var(--paper-page); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 2px; padding: 3px 6px;
+}
+
+/* ───────── Picker ───────── */
+.qp { margin-top: 6px; }
+.qp-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 8px; margin-bottom: 6px;
+}
+.qp-title {
+  font-family: var(--font-ui); font-size: 11px; letter-spacing: .08em;
+  color: var(--ink-muted); text-transform: uppercase;
+}
+.qp-counts { font-family: var(--font-mono); font-size: 10px; color: var(--ink-soft); }
+.qp-counts b { color: var(--ink); }
+
+.qp-tools { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.qp-search {
+  flex: 1; font-family: inherit; font-size: 12px;
+  background: var(--paper-page); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 2px; padding: 5px 8px;
+}
+.qp-only {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-ui); font-size: 11px; color: var(--ink-muted);
+  white-space: nowrap; cursor: pointer;
+}
+
+.qp-list {
+  max-height: 320px; overflow-y: auto;
+  border: 1px solid var(--rule); border-radius: 2px;
+  background: var(--paper-page);
+}
+.qp-empty {
+  padding: 18px; text-align: center;
+  font-family: var(--font-ui); font-size: 12px; color: var(--ink-soft);
+}
+.qp-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  text-align: left; padding: 7px 10px;
+  background: transparent; border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
+  cursor: pointer; font-family: inherit; color: var(--ink);
+  transition: background .12s;
+}
+.qp-item:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.qp-item:last-child { border-bottom: 0; }
+.qp-no {
+  font-family: var(--font-mono); font-size: 10px; color: var(--ink-soft);
+  width: 26px; flex-shrink: 0;
+}
+.qp-text {
+  flex: 1; font-size: 13px; line-height: 1.4;
+  font-family: var(--font-display, inherit);
+}
+.qp-badge {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: 10px;
+  padding: 2px 6px; border-radius: 2px; white-space: nowrap;
+}
+.qp-badge.used { background: #6e2828; color: #f6ecd6; }
+.qp-badge.here { background: #2f5d3a; color: #f6ecd6; }
+
+.qp-item.state-used { opacity: .5; }
+.qp-item.state-used .qp-text { text-decoration: line-through; }
+.qp-item.state-here { background: color-mix(in srgb, #2f5d3a 12%, transparent); }
+.qp-item.selected {
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--ink);
+}
+.qp-item.selected .qp-text { font-weight: 600; }
+
+.qp-foot {
+  margin-top: 6px; font-family: var(--font-ui); font-size: 10px;
+  color: var(--ink-soft); line-height: 1.6;
+}
+.qp-foot .dot-used { color: #6e2828; }
+
+/* ───────── 사용 현황 뷰 ───────── */
+.usage-view { padding: 22px 28px; max-width: 1100px; margin: 0 auto; }
+.usage-top {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  gap: 16px; margin-bottom: 14px;
+}
+.usage-h {
+  font-family: var(--font-display, inherit); font-style: italic;
+  font-size: 26px; color: var(--ink);
+}
+.usage-sub {
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft);
+  margin-top: 4px;
+}
+.usage-actions { display: flex; align-items: center; gap: 10px; }
+.usage-book {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-ui); font-size: 12px; color: var(--ink-muted);
+}
+.usage-book select {
+  font-family: var(--font-mono); font-size: 12px;
+  background: var(--paper-page); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 2px; padding: 3px 6px;
+}
+
+.usage-bar {
+  position: relative; height: 22px; border: 1px solid var(--rule);
+  background: var(--paper-page); border-radius: 2px; overflow: hidden;
+  margin-bottom: 18px;
+}
+.usage-bar-fill {
+  position: absolute; inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #6e2828, #b8923b);
+  transition: width .35s;
+}
+.usage-bar-label {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink); mix-blend-mode: difference; color: #fff;
+}
+
+.usage-books {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 12px;
+}
+.usage-book-card {
+  border: 1px solid var(--rule); border-radius: 3px;
+  background: var(--paper-page); padding: 10px 12px;
+}
+.usage-book-card.current { box-shadow: 0 0 0 2px var(--ink) inset; }
+.usage-book-card.full { background: color-mix(in srgb, #2f5d3a 8%, var(--paper-page)); }
+.ubc-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--rule);
+}
+.ubc-no { font-family: var(--font-display, inherit); font-size: 16px; font-weight: 600; color: var(--ink); }
+.ubc-cnt { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); }
+.ubc-tag {
+  font-family: var(--font-mono); font-size: 9px; padding: 1px 6px;
+  background: var(--ink); color: var(--paper-page); border-radius: 2px;
+}
+.ubc-spacer { flex: 1; }
+.ubc-clear, .ubc-x {
+  font-family: var(--font-ui); font-size: 10px; cursor: pointer;
+  background: transparent; border: 1px solid var(--rule);
+  color: var(--ink-soft); border-radius: 2px; padding: 1px 6px;
+}
+.ubc-clear:hover, .ubc-x:hover { color: #6e2828; border-color: #6e2828; }
+.ubc-empty {
+  font-family: var(--font-ui); font-size: 11px; color: var(--ink-soft);
+  padding: 6px 2px; font-style: italic;
+}
+.ubc-list { list-style: none; margin: 0; padding: 0; }
+.ubc-list li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--rule) 40%, transparent);
+  font-size: 12px;
+}
+.ubc-list li:last-child { border-bottom: 0; }
+.ubc-pos { font-family: var(--font-mono); font-size: 10px; color: var(--ink-soft); width: 52px; flex-shrink: 0; }
+.ubc-cat {
+  font-family: var(--font-ui); font-size: 10px; color: var(--ink-muted);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  padding: 1px 5px; border-radius: 2px; flex-shrink: 0;
+}
+.ubc-q { flex: 1; color: var(--ink); line-height: 1.35; }
+.ubc-x { flex-shrink: 0; }

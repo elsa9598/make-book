@@ -1,0 +1,21 @@
+# 보안 — 환경/시크릿 절대 커밋 금지
+.env
+.env.*
+*.pem
+*.key
+secrets*.json
+
+# 런타임/로그
+*.log
+server.out
+tasks/
+
+# OS / 에디터
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# 의존성
+node_modules/
