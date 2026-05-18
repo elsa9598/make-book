@@ -43,25 +43,86 @@ function lineCount(t) {
   return t.split("\n").filter(l => l.trim().length > 0).length;
 }
 
+/* 모델이 문단으로 써도 '한 문장 = 한 줄'로 분해 + 구절 중복/잡표기 제거
+   - [도입]/[이야기] 같은 대괄호 표기, 머리표(- • 1.) 제거
+   - 한국어 종결부호(. ! ? …) 기준으로 문장 분리
+   - 본문 첫 부분이 구절을 그대로 반복하면 그 줄 제거 (제목으로 따로 들어감) */
+function formatBody(raw, quote) {
+  let t = (raw || "").replace(/\r/g, "").trim();
+  // 대괄호 구간표기 / 머리표 제거
+  t = t.replace(/\[[^\]]{0,12}\]/g, " ");
+  t = t.replace(/^\s*(?:[-•*▶◦·]|\d+[.)])\s*/gm, "");
+  // 문장 단위 분해: 종결부호 뒤 또는 줄바꿈에서 끊는다
+  const parts = t
+    .split(/(?<=[.!?…。])\s+|\n+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const qNorm = (quote || "").replace(/[\s"'“”‘’.,!?…]/g, "");
+  const lines = [];
+  for (let s of parts) {
+    // 잔존 따옴표·군더더기 정리
+    s = s.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, "").trim();
+    if (!s) continue;
+    const sNorm = s.replace(/[\s"'“”‘’.,!?…]/g, "");
+    // 구절을 그대로 반복한 줄은 버림(제목으로 별도 삽입되므로)
+    if (qNorm && sNorm.includes(qNorm)) continue;
+    lines.push(s);
+  }
+  // 너무 길면 17줄까지만
+  return lines.slice(0, 17).join("\n").trim();
+}
+
 async function generateOnce({ topic, category, quote, temperature = 0.8 }) {
-  // 실제 로컬 모델 호출처럼 window.claude.complete 사용
   const T = window.TOPICS[topic];
-  const sys = `당신은 한국어로만 글을 쓰는 철학 아트북 작가입니다.
-주제: ${T.nameKo}(${T.name}) 철학
-카테고리: ${category}
-독자의 명언/구절: "${quote}"
 
-요구사항:
-- 한국어 한글로만 쓰십시오. 한자(漢字), 일본어 히라가나·가타카나는 절대 사용 금지.
-- 외래어 표기도 한글로만. (예: 니체, 쇼펜하우어)
-- 어려운 철학을 일반 독자가 이해하기 쉽게 풀어주십시오.
-- 짧은 일상 스토리(예시)로 개념을 보여주십시오.
-- 시적이고 따뜻한 톤. 한 문장씩 줄바꿈하여 시처럼 배치.
+  // 한국어 강제 + 중국어 드리프트 차단 (qwen2.5 대응) + 1-shot 앵커
+  const sys = `너는 오직 한국어 한글로만 글을 쓰는 철학 아트북 작가다.
+절대 규칙:
+- 모든 문장을 한국어 한글로만 쓴다. 중국어(汉字)·한자(漢字)·일본어 가나는 한 글자도 쓰지 않는다.
+- 한자어도 전부 한글로 표기한다. 영어 단어도 쓰지 않는다.
+- 위 규칙을 어기면 실패다. 한국어가 아니면 다시 한국어로 바꿔 쓴다.
+
+집필 지침:
+- 주제는 ${T.nameKo} 철학, 카테고리는 "${category}".
+- 어려운 철학을 일반 독자가 쉽게 이해하도록 풀어 설명한다.
+- 본문은 반드시 다음 세 부분으로 구성한다:
+  (1) 도입 2~4줄: 구절이 가리키는 철학 개념을 쉬운 말로 푼다.
+  (2) 이야기 7~10줄: 구체적인 인물 한 명이 등장하는 '하나의' 짧은 이야기.
+      그 인물에게 작은 사건이 일어나고, 마음의 전환이 생기는 장면을 보여 준다.
+      (예: 한 노인이, 어떤 아이가, 길 잃은 나그네가 …처럼 인물·상황·전환이 분명할 것)
+  (3) 마무리 3~5줄: 그 이야기에서 끌어낸 통찰을 독자의 삶으로 잇는다.
+- 이야기는 정확히 '하나'만. 추상적 설명만으로 끝내지 말 것 — 장면이 그려져야 한다.
+- 시적이고 따뜻한 톤. 한 문장씩 줄바꿈해 시처럼 배치한다.
 - 정확히 14~17줄. 각 줄은 짧게.
-- 제목·머리말·번호·괄호 설명 없이 본문만.
-- 독자의 구절(명언)은 제목으로 따로 표시되니, 본문 안에서 그 구절을 반복하지 마십시오.`;
+- 제목·머리말·번호·소제목·괄호 설명 없이 본문만 쓴다.
+- 주어진 구절을 본문 안에서 그대로 반복하지 않는다.`;
 
-  const prompt = `위 주제·구절을 받아 14~18줄의 한국어 본문을 써 주세요.`;
+  const example = `구성 예시(형식만 참고, 내용은 완전히 새로 쓸 것):
+[도입] 가진 것을 세는 마음은 늘 부족함을 본다.
+[도입] 진짜 부유함은 그 셈을 멈출 때 온다.
+[이야기] 한 상인이 매일 금화를 세며 잠들지 못했다.
+[이야기] 어느 밤 창밖에서 노랫소리가 들렸다.
+[이야기] 빵 한 덩이로 저녁을 나누던 가난한 부부였다.
+[이야기] 상인은 처음으로 금고가 아니라 사람을 보았다.
+[이야기] 다음 날 그는 빵을 사 들고 그 문을 두드렸다.
+[마무리] 채움이 아니라 나눔이 곳간을 따뜻하게 했다.
+[마무리] 오늘 나는 무엇을 세고 있는가.`;
+
+  const userMsg = `${example}
+
+이제 아래 구절을 출발점으로, 위 지침에 맞춰 한국어 본문을 새로 써라.
+(위 [도입]/[이야기]/[마무리] 표기는 쓰지 말고 본문 문장만 쓴다.)
+구절: "${quote}"
+
+분량·구성 규칙(엄수):
+- 반드시 14줄 이상 17줄 이하. 5~12줄로 짧게 끝내지 말 것.
+- 각 줄은 한 호흡 길이(대략 10~25자)로 짧게. 한 줄에 한 문장.
+- 구체적 인물이 등장하는 '하나의' 이야기를 7~10줄로 반드시 넣는다.
+- 그 이야기에는 인물·작은 사건·마음의 전환이 분명히 보여야 한다.
+- 추상적 설명만 나열하지 말 것. 장면이 눈에 그려져야 한다.
+- 줄 끝에 쉼표·말줄임표를 남발하지 말 것.
+반드시 한국어 한글로만. 첫 줄부터 본문을 시작하라.`;
 
   // 로컬 Ollama(localhost:11434) 직접 호출 — 클라우드 미사용
   try {
@@ -71,14 +132,16 @@ async function generateOnce({ topic, category, quote, temperature = 0.8 }) {
       body: JSON.stringify({
         model: OLLAMA_MODEL,
         stream: false,
+        keep_alive: "10m",
         messages: [
           { role: "system", content: sys },
-          { role: "user", content: prompt }
+          { role: "user", content: userMsg }
         ],
         options: {
           temperature,
-          top_p: 0.9,
-          num_predict: 512
+          top_p: 0.85,
+          repeat_penalty: 1.15,
+          num_predict: 1000
         }
       })
     });
@@ -86,11 +149,42 @@ async function generateOnce({ topic, category, quote, temperature = 0.8 }) {
     const data = await res.json();
     const text = (data && data.message && data.message.content || "").trim();
     if (!text) throw new Error("빈 응답");
-    return text;
+    return { text, via: "ollama" };
   } catch (e) {
-    // fallback: Ollama 미기동/모델 없음 → 데모 텍스트로 흐름 유지
-    console.warn("[ai-writer] Ollama 호출 실패 → 데모 텍스트:", e.message);
-    return demoText(topic, category, quote);
+    // 실패를 숨기지 않는다 — 호출자에서 명확히 표시
+    console.warn("[ai-writer] Ollama 호출 실패:", e.message);
+    return { text: demoText(topic, category, quote), via: "demo", err: e.message };
+  }
+}
+
+// 분량이 짧을 때 1회 확장: 같은 이야기를 14~17개의 짧은 한 줄 문장으로 재구성
+async function expandToLines(draft) {
+  const sys = `너는 한국어 한글로만 쓰는 편집자다. 한자·일본어 가나 금지.
+주어진 글을 다시 쓰되, 내용·이야기·인물·교훈은 그대로 유지하고
+형식만 바꾼다: 한 문장을 한 줄로, 짧게(대략 10~25자) 끊어
+정확히 14~17줄로 만든다. 새 이야기를 추가하지 말고, 있던 한 이야기를 더 천천히 풀어 줄을 늘린다.
+번호·소제목·따옴표·괄호 설명 없이 본문 줄만 출력한다.`;
+  try {
+    const res = await fetch(OLLAMA_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        stream: false,
+        keep_alive: "10m",
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: "다음 글을 14~17개의 짧은 한국어 줄로 재구성하라:\n\n" + draft }
+        ],
+        options: { temperature: 0.5, top_p: 0.85, repeat_penalty: 1.15, num_predict: 1000 }
+      })
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    return (data && data.message && data.message.content || "").trim();
+  } catch (e) {
+    console.warn("[ai-writer] 확장 패스 실패:", e.message);
+    return "";
   }
 }
 
@@ -159,6 +253,7 @@ ${category}은 그래서 외부에서 오지 않는다.
 function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetryLog, busy, setBusy, versions, setVersions, onSaveToBook }) {
   const [dirty, setDirty] = useState(false);
   const [activeVer, setActiveVer] = useState(null);
+  const [genVia, setGenVia] = useState("");
 
   const saveVersion = (source = "manual") => {
     if (!output.trim()) return;
@@ -192,22 +287,37 @@ function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetr
     const MAX_ATTEMPTS = 4;
     let finalText = "";
     let logs = [];
+    let via = "ollama";
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       logs.push({ step: `T${attempt}`, status: "생성 중…", kind: "pending" });
       setRetryLog([...logs]);
 
-      const text = await generateOnce({
+      const res = await generateOnce({
         topic, category, quote,
         temperature: 0.6 + attempt * 0.1
       });
+      via = res.via;
 
+      // Ollama 연결 자체가 실패 → 재시도 무의미, 즉시 명확히 표시
+      if (res.via === "demo") {
+        logs[logs.length - 1] = {
+          step: `T${attempt}`,
+          status: `Ollama 연결 실패 — 데모 텍스트 (${res.err || "원인 미상"})`,
+          kind: "fail"
+        };
+        setRetryLog([...logs]);
+        finalText = res.text;
+        break;
+      }
+
+      const text = res.text;
       const hits = detectForeign(text);
       logs[logs.length - 1] = {
         step: `T${attempt}`,
         status: hits.length === 0
           ? `통과 · ${lineCount(text)}줄`
-          : `검출: ${hits.join(", ")}`,
+          : `검출: ${hits.join(", ")} → 재생성`,
         kind: hits.length === 0 ? "pass" : "fail"
       };
       setRetryLog([...logs]);
@@ -221,7 +331,7 @@ function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetr
         const { cleaned, removed } = stripMixedLines(text);
         logs.push({
           step: "후처리",
-          status: `섞인 줄 ${removed}개 제거`,
+          status: `한자/가나 줄 ${removed}개 제거 (모델 한국어 드리프트)`,
           kind: "strip"
         });
         setRetryLog([...logs]);
@@ -231,8 +341,28 @@ function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetr
       }
     }
 
-    // 첫 줄에 명언/구절을 타이틀로 자동 삽입 + 빈 줄 제거
-    const compact = finalText.replace(/\n\s*\n+/g, "\n").trim();
+    setGenVia(via);
+
+    // 문단 → 한 문장 한 줄로 분해 + 구절 중복 제거
+    let compact = formatBody(finalText, quote);
+
+    // 분량이 짧으면(이야기는 있으나 12줄 미만) 1회 확장 패스로 14~17줄 보강
+    if (via === "ollama" && lineCount(compact) < 12) {
+      logs.push({ step: "확장", status: `${lineCount(compact)}줄 → 14~17줄 재구성 중…`, kind: "pending" });
+      setRetryLog([...logs]);
+      const expanded = await expandToLines(compact);
+      const ce = formatBody(expanded, quote);
+      const ok = ce && detectForeign(ce).length === 0 && lineCount(ce) >= lineCount(compact);
+      logs[logs.length - 1] = {
+        step: "확장",
+        status: ok ? `완료 · ${lineCount(ce)}줄` : `생략(원문 유지 · ${lineCount(compact)}줄)`,
+        kind: ok ? "pass" : "strip"
+      };
+      setRetryLog([...logs]);
+      if (ok) compact = ce;
+    }
+
+    // 구절을 타이틀로 삽입
     const titled = quote.trim() + "\n" + compact;
     setOutput(titled);
     setBusy(false);
@@ -300,11 +430,15 @@ function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetr
 
       <div className="writer-toolbar">
         <div className="hint" style={{fontSize: "11px"}}>
-          {dirty
-            ? <span style={{color: "#a83232"}}>● 수정됨 — 저장하세요</span>
-            : (versions.length > 0
-              ? `✓ ‘v${versions.length}’ 저장됨 · ${versions[versions.length-1].savedAt}`
-              : "qwen2.5:14b · 한자/가나 자동 검출 · 최대 4회 재시도")}
+          {genVia === "demo"
+            ? <span style={{color: "#a83232"}}>⚠ Ollama 미연결 — 데모 텍스트입니다. http://localhost:8787 로 열고 Ollama 실행을 확인하세요</span>
+            : (dirty
+              ? <span style={{color: "#a83232"}}>● 수정됨 — 저장하세요</span>
+              : (versions.length > 0
+                ? `✓ ‘v${versions.length}’ 저장됨 · ${versions[versions.length-1].savedAt}`
+                : (genVia === "ollama"
+                  ? "✓ qwen2.5:14b 로컬 생성 · 한자/가나 자동 검출"
+                  : "qwen2.5:14b · 한자/가나 자동 검출 · 최대 4회 재시도")))}
         </div>
         <div style={{display: "flex", gap: 8}}>
           {output && (
