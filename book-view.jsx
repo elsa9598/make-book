@@ -245,6 +245,57 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
   const [dirty, setDirty] = useStateBV(false);
   const [lastSaved, setLastSaved] = useStateBV(null);
   const [expandOpen, setExpandOpen] = useStateBV(false);
+  const [pdfBusy, setPdfBusy] = useStateBV(false);
+
+  // 미리보기 → 로컬 PDF 파일로 저장 (전 스프레드, 클라이언트 전용)
+  const exportPDF = async () => {
+    const jspdfNS = window.jspdf || window.jsPDF;
+    const JsPDF = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
+    if (!window.html2canvas || !JsPDF) {
+      // 라이브러리 미로드 시: 브라우저 인쇄(다른 이름으로 PDF 저장)로 폴백
+      alert("PDF 라이브러리를 불러오지 못해 인쇄 대화상자로 전환합니다. ‘PDF로 저장’을 선택하세요.");
+      window.print();
+      return;
+    }
+    const po = document.querySelector(".print-only");
+    if (!po) return;
+    setPdfBusy(true);
+
+    const prevStyle = po.getAttribute("style") || "";
+    const W = 1600, H = 800; // 스프레드 2:1
+    po.setAttribute("style",
+      "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:#ffffff;z-index:-1;");
+    const spreadsEls = Array.from(po.querySelectorAll(".print-spread"));
+    const prevSpreadStyles = spreadsEls.map(el => el.getAttribute("style") || "");
+    spreadsEls.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;"));
+
+    try {
+      // 폰트/이미지 렌더 안정화
+      if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
+      await new Promise(r => setTimeout(r, 120));
+
+      const doc = new JsPDF({ orientation: "landscape", unit: "px", format: [W, H] });
+      for (let i = 0; i < spreadsEls.length; i++) {
+        const canvas = await window.html2canvas(spreadsEls[i], {
+          scale: 2, useCORS: true, backgroundColor: "#ffffff",
+          width: W, height: H, windowWidth: W, windowHeight: H
+        });
+        const img = canvas.toDataURL("image/jpeg", 0.92);
+        if (i > 0) doc.addPage([W, H], "landscape");
+        doc.addImage(img, "JPEG", 0, 0, W, H);
+      }
+      const d = new Date();
+      const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+      doc.save("아트북_" + (T ? T.nameKo : "book") + "_" + stamp + ".pdf");
+    } catch (e) {
+      console.error("[pdf] 생성 실패:", e);
+      alert("PDF 생성 중 오류가 발생했습니다. 콘솔을 확인하세요.");
+    } finally {
+      po.setAttribute("style", prevStyle);
+      spreadsEls.forEach((el, i) => el.setAttribute("style", prevSpreadStyles[i]));
+      setPdfBusy(false);
+    }
+  };
 
   // 스프레드 변경 또는 저장 데이터 변경 시 버퍼 동기화
   React.useEffect(() => {
@@ -316,10 +367,11 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
         <div className="nav-spacer"></div>
         <button
           className="btn pdf-btn"
-          onClick={() => window.print()}
-          title="브라우저 인쇄 대화상자에서 ‘PDF로 저장’을 선택하세요"
+          onClick={exportPDF}
+          disabled={pdfBusy}
+          title="전 스프레드를 .pdf 파일로 로컬에 저장합니다 (다운로드 폴더)"
         >
-          ▤ PDF 변환
+          {pdfBusy ? "PDF 생성 중…" : "▤ PDF 저장"}
         </button>
       </div>
 

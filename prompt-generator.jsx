@@ -4,21 +4,49 @@ const { useState: useStatePG, useMemo: useMemoPG, useRef: useRefPG } = React;
 
 /* ────────── 공통: 선택 가능한 칩 그리드 ────────── */
 function OptionChips({ options, selected, onToggle, columns = 4 }) {
+  const [q, setQ] = useStatePG("");
+  const big = options.length > 24;
+  const filtered = useMemoPG(() => {
+    const k = q.trim().toLowerCase();
+    if (!k) return options;
+    return options.filter(o => {
+      const v = (typeof o === "string" ? o : o.value) || "";
+      const l = (typeof o === "string" ? o : o.label) || "";
+      return v.toLowerCase().includes(k) || l.toLowerCase().includes(k);
+    });
+  }, [options, q]);
+
   return (
-    <div className="opt-grid" style={{gridTemplateColumns: `repeat(${columns}, 1fr)`}}>
-      {options.map(opt => {
-        const value = typeof opt === "string" ? opt : opt.value;
-        const label = typeof opt === "string" ? opt : opt.label;
-        const isSel = selected.includes(value);
-        return (
-          <button
-            key={value}
-            className={"opt-chip" + (isSel ? " active" : "")}
-            onClick={() => onToggle(value)}
-            title={value}
-          >{label}</button>
-        );
-      })}
+    <div className="opt-wrap">
+      {big && (
+        <div className="opt-tools">
+          <input
+            className="opt-search"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder={`검색 — 전체 ${options.length}개`}
+          />
+          <span className="opt-count">{filtered.length} 표시 · {selected.length} 선택</span>
+        </div>
+      )}
+      <div className={"opt-scroll" + (big ? " scrollable" : "")}>
+        <div className="opt-grid" style={{gridTemplateColumns: `repeat(${columns}, 1fr)`}}>
+          {filtered.map(opt => {
+            const value = typeof opt === "string" ? opt : opt.value;
+            const label = typeof opt === "string" ? opt : opt.label;
+            const isSel = selected.includes(value);
+            return (
+              <button
+                key={value}
+                className={"opt-chip" + (isSel ? " active" : "")}
+                onClick={() => onToggle(value)}
+                title={value}
+              >{label}</button>
+            );
+          })}
+          {filtered.length === 0 && <div className="opt-empty">검색 결과가 없습니다</div>}
+        </div>
+      </div>
     </div>
   );
 }
