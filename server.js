@@ -17,7 +17,35 @@ const TYPES = {
   ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp"
 };
 
+// 로컬 Ollama 프록시 — 브라우저는 같은 출처(/ollama/chat)로만 호출 → CORS 소멸
+function proxyOllama(req, res) {
+  let body = "";
+  req.on("data", c => { body += c; if (body.length > 2e6) req.destroy(); });
+  req.on("end", () => {
+    const opt = {
+      host: "127.0.0.1", port: 11434, path: "/api/chat", method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }
+    };
+    const fwd = http.request(opt, r => {
+      res.writeHead(r.statusCode || 502, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store"
+      });
+      r.pipe(res);
+    });
+    fwd.on("error", e => {
+      res.writeHead(502, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "ollama_unreachable", detail: e.message }));
+    });
+    fwd.setTimeout(120000, () => fwd.destroy(new Error("ollama timeout")));
+    fwd.end(body);
+  });
+}
+
 const server = http.createServer((req, res) => {
+  if (req.url.split("?")[0] === "/ollama/chat" && req.method === "POST") {
+    return proxyOllama(req, res);
+  }
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath === "/") urlPath = "/index.html";
   const filePath = path.join(ROOT, path.normalize(urlPath));

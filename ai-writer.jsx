@@ -8,7 +8,11 @@
 const { useState, useRef } = React;
 
 // ───────── 로컬 Ollama 연결 (100% 로컬 · 외부망 미사용) ─────────
-const OLLAMA_URL = "http://localhost:11434/api/chat";
+// 서버(http://localhost:8787)로 열렸으면 같은 출처 프록시 → CORS 없음.
+// 파일(file://)로 열렸으면 직접 호출(브라우저 CORS 정책 영향 받음).
+const OLLAMA_URL = (location.protocol === "http:" || location.protocol === "https:")
+  ? (location.origin + "/ollama/chat")
+  : "http://localhost:11434/api/chat";
 const OLLAMA_MODEL = "qwen2.5:14b";
 
 // CJK 한자 + 일본어 가나 검출
