@@ -327,13 +327,32 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
 
   const onSaveEdit = () => {
     if (!saved) return;
+    const next = { ...saved, body: editBuf };
     setCompleted({
       ...completed,
-      [sp.index]: { ...saved, body: editBuf }
+      [sp.index]: next
     });
     const now = new Date();
     setLastSaved(now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     setDirty(false);
+
+    // 디스크 페이지 파일(.txt)도 갱신 — 서버로 열렸고 권 정보가 있을 때
+    if ((location.protocol === "http:" || location.protocol === "https:") && next.book) {
+      const aId = String(sp.leftPage).padStart(3, "0") + "_a";
+      fetch(location.origin + "/save-page", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          book: String(next.book).padStart(2, "0") + "권",
+          pages: [{
+            id: aId,
+            files: [{ name: aId + ".txt", text: editBuf }]
+          }]
+        })
+      }).then(r => r.json()).then(j => {
+        if (j && j.ok) setLastSaved(now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " · 폴더 반영");
+      }).catch(e => console.warn("[preview save] 디스크 반영 실패:", e.message));
+    }
   };
 
   const isBodySpread = sp.leftMeta.section === "body" && saved;

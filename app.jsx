@@ -242,7 +242,7 @@ function App() {
           {
             id: aId,
             files: [
-              { name: aId + ".txt", text: quote.trim() + "\n\n" + body },
+              { name: aId + ".txt", text: body },
               ...(aImg ? [{ name: aId + "." + aImg.ext, b64: aImg.b64 }] : [])
             ]
           },
@@ -281,7 +281,6 @@ function App() {
       <header className="app-header">
         <div className="brand">
           <div className="brand-mark">아트북 제작</div>
-          <div className="brand-tag">Philosophy · Art Book Studio · 60p</div>
         </div>
         <div className="tabs">
           <button className={"tab" + (tab === "workshop" ? " active" : "")} onClick={() => setTab("workshop")}>작업실</button>

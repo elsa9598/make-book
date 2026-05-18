@@ -111,6 +111,7 @@ body {
   letter-spacing: 0.02em;
   color: var(--ink);
   font-style: italic;
+  white-space: nowrap;
 }
 .brand-mark::before {
   content: "❦";
