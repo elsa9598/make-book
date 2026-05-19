@@ -51,7 +51,8 @@ function savePdf(req, res) {
       const j = JSON.parse(body);
       let name = String(j.filename || "artbook.pdf").replace(/[^\w.\-가-힣]+/g, "_");
       if (!name.toLowerCase().endsWith(".pdf")) name += ".pdf";
-      const dir = path.join(ROOT, "pdf");
+      const sub = j.sub ? String(j.sub).replace(/[^\w.\-가-힣]+/g, "_").slice(0, 32) : "";
+      const dir = sub ? path.join(ROOT, "pdf", sub) : path.join(ROOT, "pdf");
       fs.mkdirSync(dir, { recursive: true });
       const buf = Buffer.from(String(j.data || ""), "base64");
       const full = path.join(dir, name);
@@ -84,7 +85,12 @@ function savePage(req, res) {
         (pg.files || []).forEach(f => {
           const name = safe(f.name);
           if (!name) return;
-          const full = path.join(dir, name);
+          let tgtDir = dir;
+          if (f.sub) {                                    // 예: versions (영구 스냅샷)
+            tgtDir = path.join(dir, safe(f.sub).slice(0, 24));
+            fs.mkdirSync(tgtDir, { recursive: true });
+          }
+          const full = path.join(tgtDir, name);
           if (typeof f.text === "string") fs.writeFileSync(full, f.text, "utf8");
           else if (f.b64) fs.writeFileSync(full, Buffer.from(f.b64, "base64"));
           else return;
@@ -100,9 +106,40 @@ function savePage(req, res) {
   });
 }
 
+// 페이지(스프레드) 디스크 폴더 삭제 — pages/<권>/<NNN_a>, <NNN_b>
+function deletePage(req, res) {
+  let body = "";
+  req.on("data", c => { body += c; if (body.length > 1e6) req.destroy(); });
+  req.on("end", () => {
+    try {
+      const j = JSON.parse(body);
+      const safe = s => String(s || "").replace(/[^\w.\-가-힣]+/g, "_");
+      const book = safe(j.book || "").slice(0, 40);
+      const removed = [];
+      (j.ids || []).forEach(id => {
+        const sid = safe(id).slice(0, 40);
+        if (!sid || !book) return;
+        const dir = path.join(ROOT, "pages", book, sid);
+        if (dir.startsWith(path.join(ROOT, "pages")) && fs.existsSync(dir)) {
+          fs.rmSync(dir, { recursive: true, force: true });
+          removed.push(path.join("pages", book, sid));
+        }
+      });
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: true, removed }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  });
+}
+
 const server = http.createServer((req, res) => {
   if (req.url.split("?")[0] === "/ollama/chat" && req.method === "POST") {
     return proxyOllama(req, res);
+  }
+  if (req.url.split("?")[0] === "/delete-page" && req.method === "POST") {
+    return deletePage(req, res);
   }
   if (req.url.split("?")[0] === "/save-pdf" && req.method === "POST") {
     return savePdf(req, res);

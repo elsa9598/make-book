@@ -124,12 +124,12 @@ function QuotePicker(props) {
               key={r.i}
               className={"qp-item state-" + r.state + (selected ? " selected" : "")}
               onClick={() => setQuote(r.q)}
-              title={r.use ? `이미 사용: ${r.use.book}권 본문#${(r.use.spread - 3)} (${r.use.category})` : "미사용"}
+              title={r.use ? `이미 사용: ${r.use.book}권 본문#${r.use.spread} (${r.use.category})` : "미사용"}
             >
               <span className="qp-no">{String(r.i + 1).padStart(3, "0")}</span>
               <span className="qp-text">{r.q}</span>
               {r.state === "used" && (
-                <span className="qp-badge used">📕 {r.use.book}권·본문{String(Math.max(1, r.use.spread - 3)).padStart(2, "0")}</span>
+                <span className="qp-badge used">📕 {r.use.book}권·본문{String(r.use.spread).padStart(2, "0")}</span>
               )}
               {r.state === "here" && <span className="qp-badge here">● 현재 본문</span>}
             </button>
@@ -170,7 +170,7 @@ function UsageIndex(props) {
       if (!arr || arr.length === 0) continue;
       out += `\n■ ${b}권 (${arr.length}/${WORKS_PER_BOOK})\n`;
       arr.forEach(e => {
-        out += `  - 본문${String(Math.max(1, e.spread - 3)).padStart(2, "0")} [${e.category}] ${e.q}\n`;
+        out += `  - 본문${String(e.spread).padStart(2, "0")} [${e.category}] ${e.q}\n`;
       });
     }
     if (navigator.clipboard) navigator.clipboard.writeText(out);
@@ -238,7 +238,7 @@ function UsageIndex(props) {
                 <ul className="ubc-list">
                   {arr.map(e => (
                     <li key={e.q}>
-                      <span className="ubc-pos">본문{String(Math.max(1, e.spread - 3)).padStart(2, "0")}</span>
+                      <span className="ubc-pos">본문{String(e.spread).padStart(2, "0")}</span>
                       <span className="ubc-cat">{e.category}</span>
                       <span className="ubc-q">{e.q}</span>
                       <button className="ubc-x" onClick={() => removeOne(e.q)} title="이 항목 삭제">✕</button>

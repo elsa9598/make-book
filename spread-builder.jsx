@@ -133,7 +133,7 @@ function ContentFolder({ slot, label, selected, onSelect }) {
   );
 }
 
-/* 스프레드 미리보기 — 작업 중인 한 쌍 */
+/* 스프레드 미리보기 — 작업 중인 한 쌍 (책 미리보기와 동일한 노출제본 카드 템플릿) */
 function SpreadPreview({
   spreadIdx, leftPage, rightPage,
   comicSeed, illustSeed,
@@ -141,7 +141,9 @@ function SpreadPreview({
   onComicUpload, onIllustUpload,
   bodyText,
   comicSide = "left",
+  topic, category,
 }) {
+  const T = topic ? window.TOPICS[topic] : null;
   const comicInputRef = React.useRef(null);
   const illustInputRef = React.useRef(null);
 
@@ -162,9 +164,10 @@ function SpreadPreview({
     reader.onload = (ev) => cb(ev.target.result);
     reader.readAsDataURL(f);
   };
-  const Comic = (
+  // 카드 안 좌측: 4컷 (클릭/드래그 첨부)
+  const ComicCard = (
     <div
-      className={"left-comic " + (comicImg ? "" : "empty placeholder-label") + " droppable"}
+      className="cs-left droppable"
       onClick={() => comicInputRef.current?.click()}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => handleDrop(e, onComicUpload)}
@@ -173,17 +176,22 @@ function SpreadPreview({
       <input type="file" ref={comicInputRef} accept="image/*" onChange={(e) => handleFile(e, onComicUpload)} />
       {comicImg ? (
         <img src={comicImg} alt="4컷" />
-      ) : [0, 1, 2, 3].map(i => (
-        <div key={i}>
-          <PanelGlyph shape={["circle","triangle","square","wave"][(comicSeed + i) % 4]} />
+      ) : (
+        <div className="cs-comic-ph">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="cc-panel">
+              <PanelGlyph shape={["circle","triangle","square","wave"][(comicSeed + i) % 4]} />
+            </div>
+          ))}
+          <div className="attach-hint">⤷ 4컷 첨부</div>
         </div>
-      ))}
-      {!comicImg && <div className="attach-hint">⤷ 4컷 첨부</div>}
+      )}
     </div>
   );
 
-  const Text = (
-    <div className="left-text">
+  // 카드 안 우측: 본문 글
+  const TextCard = (
+    <div className="cs-right">
       {(() => {
         const lines = (bodyText || "").split("\n");
         const firstNonEmpty = lines.findIndex(l => l.trim().length > 0);
@@ -195,19 +203,20 @@ function SpreadPreview({
           .trim();
         return (
           <>
-            <div className="text-title">
+            <div className="text-title book-title-strong">
               <span className="title-quote">{titleLine ? `“${titleLine}”` : "—"}</span>
             </div>
-            <div className="text-body">{rest || "본문이 아직 작성되지 않았습니다."}</div>
+            <AutoFitBody text={rest || "본문이 아직 작성되지 않았습니다."} />
           </>
         );
       })()}
     </div>
   );
 
-  const Illust = (
+  // 우측 페이지 1:1 상징 카드 (클릭/드래그 첨부)
+  const IllustCard = (
     <div
-      className={"right-illust " + (illustImg ? "" : "empty") + " droppable"}
+      className="card-body droppable"
       onClick={() => illustInputRef.current?.click()}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => handleDrop(e, onIllustUpload)}
@@ -215,10 +224,10 @@ function SpreadPreview({
     >
       <input type="file" ref={illustInputRef} accept="image/*" onChange={(e) => handleFile(e, onIllustUpload)} />
       {illustImg ? (
-        <img src={illustImg} alt="일러스트" />
+        <img src={illustImg} alt="일러스트" className="card-illust" />
       ) : (
-        <>
-          <svg viewBox="0 0 100 100" style={{ width: "55%", height: "55%" }}>
+        <div className="card-empty">
+          <svg viewBox="0 0 100 100" style={{ width: "50%", height: "50%" }}>
             {(() => {
               const glyphs = [
                 <g key="g1"><circle cx="50" cy="40" r="22" stroke="var(--ink)" strokeWidth="1.6" fill="none"/><path d="M30,65 L70,65" stroke="var(--ink)" strokeWidth="1.6"/></g>,
@@ -228,42 +237,47 @@ function SpreadPreview({
               return glyphs[illustSeed % glyphs.length];
             })()}
           </svg>
-          <div className="attach-hint">⤷ 1:1 일러스트 첨부</div>
-        </>
+          <small>1:1 상징 카드 · 클릭/드래그</small>
+        </div>
       )}
     </div>
   );
 
-  // 좌 페이지: 4컷 + 글  /  우 페이지: 일러스트   (기본)
-  // tweak으로 4컷 위치를 오른쪽 페이지로 옮길 수 있음
+  const Page = ({ side }) => {
+    const isLeft = side === "left";
+    const showComicHere = (comicSide === "left" && isLeft) || (comicSide === "right" && !isLeft);
+    return (
+      <div className={"spread-page tpl " + side}>
+        <div className="tpl-page">
+          <div className="tpl-topband"></div>
+          <div className="card-slot">
+            <span className="corner tl"></span><span className="corner tr"></span>
+            <span className="corner bl"></span><span className="corner br"></span>
+            <div className="card-inner">
+              <div className="card-cat">
+                <span className="orn">⚜</span>
+                <span className="cc-topic">{T?.nameKo || "—"}</span>
+                {category && <span className="cc-cat">· {category}</span>}
+                <span className="orn">⚜</span>
+              </div>
+              {showComicHere ? (
+                <div className="card-split">{ComicCard}{TextCard}</div>
+              ) : IllustCard}
+            </div>
+          </div>
+          <div className="write-space"><div className="write-hint">필기 공간 · 8.6 cm</div></div>
+        </div>
+        <div className="page-num">{String(isLeft ? leftPage : rightPage).padStart(3, "0")}</div>
+      </div>
+    );
+  };
+
   return (
     <div className="spread-stage">
-      <div className="spread">
-        <div className="spread-page left">
-          {comicSide === "left" ? (
-            <div className="page-left-content">
-              {Comic}
-              {Text}
-            </div>
-          ) : (
-            Illust
-          )}
-          <div className="page-num">{leftPage}</div>
-        </div>
-
+      <div className="book-spread">
+        <Page side="left" />
         <Spine />
-
-        <div className="spread-page right">
-          {comicSide === "left" ? (
-            Illust
-          ) : (
-            <div className="page-left-content">
-              {Comic}
-              {Text}
-            </div>
-          )}
-          <div className="page-num">{rightPage}</div>
-        </div>
+        <Page side="right" />
       </div>
     </div>
   );

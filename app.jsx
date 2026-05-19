@@ -14,7 +14,7 @@ function App() {
   const [quote, setQuote] = useStateApp("한 사람을 구하는 것은 온 세계를 구하는 것이다.");
 
   // 작업 중인 스프레드 인덱스 (본문 = 4~27 = 24편)
-  const [currentSpread, setCurrentSpread] = useStateApp(4); // 첫 본문 스프레드 (p9-10)
+  const [currentSpread, setCurrentSpread] = useStateApp(1); // 첫 본문 스프레드 (001_a/002_b)
   const [previewSpread, setPreviewSpread] = useStateApp(0);
   const [tab, setTab] = useStateApp("workshop"); // workshop / book / preview
   const [promptPage, setPromptPage] = useStateApp(null); // null | "image" | "comic"
@@ -22,7 +22,22 @@ function App() {
   // 전역 논출 — AI Writer의 버튼에서 호출
   useEffect(() => {
     window.openPromptPage = (kind) => setPromptPage(kind);
-    return () => { delete window.openPromptPage; };
+    window.gotoTab = (t) => { setPromptPage(null); setTab(t); };
+    window.restoreToWorkshop = (spreadIdx, d) => {
+      const data = d || {};
+      setCompleted(prev => ({ ...prev, [spreadIdx]: { ...(prev[spreadIdx] || {}), ...data } }));
+      setCurrentSpread(spreadIdx);
+      if (data.topic) setTopic(data.topic);
+      if (data.category) setCategory(data.category);
+      if (data.quote != null) setQuote(data.quote);
+      if (data.body != null) setBody(data.body);
+      if (data.comicImg) setComicImg(data.comicImg);
+      if (data.illustImg) setIllustImg(data.illustImg);
+      if (data.book) setBookNo(data.book);
+      setPromptPage(null);
+      setTab("workshop");
+    };
+    return () => { delete window.openPromptPage; delete window.gotoTab; delete window.restoreToWorkshop; };
   }, []);
 
   // AI 출력
@@ -138,7 +153,7 @@ function App() {
     if (tab !== "preview") return;
     const onKey = (e) => {
       if (e.key === "ArrowLeft") setPreviewSpread(i => Math.max(0, i - 1));
-      if (e.key === "ArrowRight") setPreviewSpread(i => Math.min(29, i + 1));
+      if (e.key === "ArrowRight") setPreviewSpread(i => Math.min(24, i + 1));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -153,6 +168,10 @@ function App() {
       setPickedIllust(saved.illustFile || null);
       setComicImg(saved.comicImg || null);
       setIllustImg(saved.illustImg || null);
+      if (saved.topic) setTopic(saved.topic);
+      if (saved.category) setCategory(saved.category);
+      if (saved.quote != null) setQuote(saved.quote);
+      if (saved.book) setBookNo(saved.book);
     } else {
       setBody("");
       setPickedComic(null);
@@ -199,7 +218,7 @@ function App() {
       const a = reg.at;
       setToast({
         kind: "warn",
-        text: `⚠ 중복 — 이 구절은 이미 ${a.book}권 본문#${String(Math.max(1, a.spread - 3)).padStart(2,"0")} (${a.category})에 사용됨. 다른 명언을 선택하세요.`
+        text: `⚠ 중복 — 이 구절은 이미 ${a.book}권 본문#${String(a.spread).padStart(2,"0")} (${a.category})에 사용됨. 다른 명언을 선택하세요.`
       });
       setTimeout(() => setToast(null), 5000);
       return;
@@ -236,6 +255,11 @@ function App() {
       const bId = pad(sp.rightPage) + "_b";
       const aImg = splitDataUrl(comicImg);
       const bImg = splitDataUrl(illustImg);
+      // MAKE 스냅샷 — 이 스토리+4컷+이미지 묶음을 versions/ 에 영구 보존
+      // (이후 작업실에서 다시 생성해도 이 스냅샷은 덮어쓰지 않음 → 스토리 유실 방지)
+      const d = new Date();
+      const vstamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0")
+        + "_" + String(d.getHours()).padStart(2,"0") + String(d.getMinutes()).padStart(2,"0") + String(d.getSeconds()).padStart(2,"0");
       const payload = {
         book: String(bookNo).padStart(2, "0") + "권",
         pages: [
@@ -243,12 +267,20 @@ function App() {
             id: aId,
             files: [
               { name: aId + ".txt", text: body },
-              ...(aImg ? [{ name: aId + "." + aImg.ext, b64: aImg.b64 }] : [])
+              ...(aImg ? [{ name: aId + "." + aImg.ext, b64: aImg.b64 }] : []),
+              // 영구 스냅샷(스토리+4컷 함께)
+              { sub: "versions", name: aId + "_" + vstamp + ".txt", text: body },
+              ...(aImg ? [{ sub: "versions", name: aId + "_" + vstamp + "." + aImg.ext, b64: aImg.b64 }] : [])
             ]
           },
           {
             id: bId,
-            files: bImg ? [{ name: bId + "." + bImg.ext, b64: bImg.b64 }] : []
+            files: [
+              ...(bImg ? [{ name: bId + "." + bImg.ext, b64: bImg.b64 }] : []),
+              // 상징 이미지 영구 스냅샷(같은 스토리 묶음)
+              ...(bImg ? [{ sub: "versions", name: bId + "_" + vstamp + "." + bImg.ext, b64: bImg.b64 }] : []),
+              { sub: "versions", name: bId + "_" + vstamp + ".txt", text: body }
+            ]
           }
         ]
       };
@@ -266,14 +298,51 @@ function App() {
 
     setToast({
       kind: "ok",
-      text: `✦ ${bookNo}권 본문#${String(Math.max(1, currentSpread - 3)).padStart(2,"0")} 완성 — pp.${sp.leftPage}–${sp.rightPage} · 명언 사용 대장에 기록됨`
+      text: `✦ ${bookNo}권 본문#${String(currentSpread).padStart(2,"0")} 완성 — pp.${String(sp.leftPage).padStart(3,"0")}–${String(sp.rightPage).padStart(3,"0")} · 명언 사용 대장에 기록됨`
     });
     setTimeout(() => setToast(null), 3500);
   };
 
+  // 현재 스프레드 1개만 삭제 (다른 페이지는 그대로 · IndexedDB 백업은 보존)
+  const onDeleteSpread = () => {
+    const aF = `${String(sp.leftPage).padStart(3, "0")}_a`;
+    const bF = `${String(sp.rightPage).padStart(3, "0")}_b`;
+    if (!window.confirm(
+      `본문#${String(currentSpread).padStart(2, "0")} (pp.${aF} · ${bF})만 삭제합니다.\n` +
+      `다른 페이지(완료한 1·2페이지 등)는 그대로 유지됩니다.\n` +
+      `복구 탭의 백업은 남으니 되살릴 수 있습니다. 삭제할까요?`
+    )) return;
+
+    setCompleted(prev => {
+      const n = { ...prev };
+      delete n[currentSpread];
+      return n;
+    });
+    setLedger(window.QuoteLedger.clearSlot(ledger, topic, bookNo, currentSpread));
+    setBody(""); setComicImg(null); setIllustImg(null);
+    setPickedComic(null); setPickedIllust(null);
+    setRetryLog([]); setVersions([]);
+
+    if (location.protocol === "http:" || location.protocol === "https:") {
+      fetch(location.origin + "/delete-page", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ book: String(bookNo).padStart(2, "0") + "권", ids: [aF, bF] })
+      }).then(r => r.json()).then(j => {
+        setToast({ kind: "ok", text: `🗑 본문#${String(currentSpread).padStart(2,"0")} 삭제됨 · 디스크 ${(j.removed||[]).length}개 폴더 제거 (1·2페이지 유지)` });
+        setTimeout(() => setToast(null), 4000);
+      }).catch(() => {
+        setToast({ kind: "ok", text: `🗑 본문#${String(currentSpread).padStart(2,"0")} 삭제됨 (화면·자동저장)` });
+        setTimeout(() => setToast(null), 4000);
+      });
+    } else {
+      setToast({ kind: "ok", text: `🗑 본문#${String(currentSpread).padStart(2,"0")} 삭제됨` });
+      setTimeout(() => setToast(null), 4000);
+    }
+  };
+
   // 다음 스프레드로 이동 (useEffect가 상태 복원/초기화 담당)
   const goNextBody = () => {
-    setCurrentSpread(Math.min(29, currentSpread + 1));
+    setCurrentSpread(Math.min(24, currentSpread + 1));
   };
 
   return (
@@ -283,10 +352,11 @@ function App() {
           <div className="brand-mark">아트북 제작</div>
         </div>
         <div className="tabs">
-          <button className={"tab" + (tab === "workshop" ? " active" : "")} onClick={() => setTab("workshop")}>작업실</button>
-          <button className={"tab" + (tab === "book" ? " active" : "")} onClick={() => setTab("book")}>책 구조</button>
-          <button className={"tab" + (tab === "preview" ? " active" : "")} onClick={() => setTab("preview")}>미리보기</button>
-          <button className={"tab" + (tab === "usage" ? " active" : "")} onClick={() => setTab("usage")}>사용 현황</button>
+          <button className={"tab" + (tab === "workshop" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("workshop"); }}>작업실</button>
+          <button className={"tab" + (tab === "book" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("book"); }}>책 구조</button>
+          <button className={"tab" + (tab === "preview" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("preview"); }}>미리보기</button>
+          <button className={"tab" + (tab === "usage" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("usage"); }}>사용 현황</button>
+          <button className={"tab" + (tab === "recovery" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("recovery"); }} style={{color:"#a83232"}}>복구</button>
         </div>
         <div className="header-meta">
           <label className="book-select">
@@ -335,7 +405,7 @@ function App() {
           illustImg={illustImg} setIllustImg={setIllustImg}
           completed={completed}
           leftFile={leftFile} rightFile={rightFile}
-          canMake={canMake} onMake={onMake}
+          canMake={canMake} onMake={onMake} onDeleteSpread={onDeleteSpread}
           goNextBody={goNextBody}
           tweakValues={tweakValues}
           ledger={ledger} bookNo={bookNo}
@@ -372,6 +442,14 @@ function App() {
           topic={topic}
           ledger={ledger} setLedger={setLedger}
           bookNo={bookNo} setBookNo={setBookNo}
+        />
+      )}
+
+      {tab === "recovery" && (
+        <window.RecoveryPanel
+          completed={completed}
+          setCompleted={setCompleted}
+          setToast={setToast}
         />
       )}
         </>
@@ -444,7 +522,7 @@ function Workshop(props) {
     versions, setVersions, onSaveToBook,
     pickedComic, setPickedComic, pickedIllust, setPickedIllust,
     comicImg, setComicImg, illustImg, setIllustImg,
-    completed, leftFile, rightFile, canMake, onMake, goNextBody, tweakValues,
+    completed, leftFile, rightFile, canMake, onMake, onDeleteSpread, goNextBody, tweakValues,
     ledger, bookNo
   } = props;
 
@@ -524,18 +602,27 @@ function Workshop(props) {
       {/* 가운데 패널: 미리보기 + 스텝 */}
       <main className="panel center">
         <div className="steps">
-          <div className={"step-badge" + (currentSpread > 4 ? " done" : (currentSpread === 4 ? " active" : ""))}>
-            <span className="num">01</span>주제·구절
-          </div>
-          <div className={"step-badge" + (body ? " done" : " active")}>
-            <span className="num">02</span>본문 생성
-          </div>
-          <div className={"step-badge" + ((pickedComic && pickedIllust) ? " done" : "")}>
-            <span className="num">03</span>콘텐츠 폴더
-          </div>
-          <div className={"step-badge" + (completed[currentSpread] ? " done" : "")}>
-            <span className="num">04</span>스프레드 조립
-          </div>
+          <button
+            className="step-badge as-btn"
+            onClick={() => window.gotoTab && window.gotoTab("preview")}
+            title="미니북을 넘기며 어디까지 작업됐는지 한눈에 봅니다"
+          >
+            <span className="num">◳</span>한눈에 보기
+          </button>
+          <button
+            className="step-badge as-btn"
+            onClick={() => window.openPromptPage && window.openPromptPage("image")}
+            title="이미지 생성 프롬프트 페이지로 이동"
+          >
+            <span className="num">▦</span>이미지 프롬프트
+          </button>
+          <button
+            className="step-badge as-btn"
+            onClick={() => window.openPromptPage && window.openPromptPage("comic")}
+            title="4컷 만화 프롬프트 페이지로 이동"
+          >
+            <span className="num">▤</span>4컷 프롬프트
+          </button>
         </div>
 
         <div style={{
@@ -556,7 +643,7 @@ function Workshop(props) {
               {sp.leftMeta.label} · {sp.rightMeta.label}
             </div>
             <div style={{fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-muted)", marginTop: 2}}>
-              {leftFile} · {rightFile} · pp.{sp.leftPage}–{sp.rightPage} · 스프레드 {currentSpread + 1}/30
+              {leftFile} · {rightFile} · pp.{String(sp.leftPage).padStart(3,"0")}–{String(sp.rightPage).padStart(3,"0")} · 스프레드 {currentSpread + 1}/25
             </div>
           </div>
           <div style={{display: "flex", gap: 6}}>
@@ -567,7 +654,7 @@ function Workshop(props) {
             >‹ 이전</button>
             <button
               className="btn ghost"
-              disabled={currentSpread >= 29}
+              disabled={currentSpread >= 24}
               onClick={goNextBody}
             >다음 ›</button>
           </div>
@@ -585,6 +672,8 @@ function Workshop(props) {
           onIllustUpload={setIllustImg}
           bodyText={body}
           comicSide={tweakValues.comicSide}
+          topic={topic}
+          category={category}
         />
       </main>
 
@@ -643,6 +732,14 @@ function Workshop(props) {
           <div className="hint" style={{marginTop: 10, fontSize: 11, textAlign: "center"}}>
             완성된 스프레드는 즉시 PDF 미리보기에 반영됩니다.
           </div>
+          <button
+            className="btn ghost"
+            style={{marginTop: 10, width: "100%", color: "#a83232", borderColor: "#a83232"}}
+            onClick={onDeleteSpread}
+            title="지금 보고 있는 이 스프레드 1개만 삭제 (다른 페이지·완료분은 그대로)"
+          >
+            🗑 이 스프레드만 삭제 ({leftFile} · {rightFile})
+          </button>
         </div>
 
         {Object.keys(completed).length > 0 && (

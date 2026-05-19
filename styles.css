@@ -746,7 +746,7 @@ body {
   grid-template-columns: 1fr 1fr;
   width: 100%;
   max-width: 720px;
-  aspect-ratio: 2 / 1;
+  aspect-ratio: 29.7 / 21;
   background: var(--paper-page);
   box-shadow:
     0 1px 0 var(--paper-page-edge),
@@ -964,7 +964,7 @@ body {
   box-shadow: 0 4px 8px var(--paper-shadow);
 }
 .spread-cell .cell-thumb {
-  aspect-ratio: 2 / 1;
+  aspect-ratio: 29.7 / 21;
   background: linear-gradient(180deg, var(--paper-warm), var(--paper-page-edge));
   position: relative;
   display: flex;
@@ -1059,7 +1059,7 @@ body {
 .book-spread {
   position: relative;
   width: min(960px, 92vw);
-  aspect-ratio: 2 / 1;
+  aspect-ratio: 29.7 / 21;
   display: grid;
   grid-template-columns: 1fr 1fr;
   background: var(--paper-page);
@@ -1783,4 +1783,298 @@ input[type="file"] { display: none; }
   background: var(--paper-warm);
   border-color: var(--ink-soft);
   color: var(--ink);
+}
+
+/* ────────── 미리보기 좌측 상단 주제·카테고리 (노출제본 빈템플릿) ────────── */
+.book-spread .spread-subject {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  font-family: var(--font-display);
+  margin-bottom: 4%;
+  padding-bottom: 2%;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.book-spread .spread-subject .subj-main {
+  font-size: 19.4px;          /* 우측 타이틀(16.2px) 대비 약 1.2배 */
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+.book-spread .spread-subject .subj-cat {
+  font-size: 14px;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.book-spread .spread-subject .orn {
+  font-size: 18px;
+  color: var(--topic-accent);
+  line-height: 1;
+}
+/* 헤더가 생긴 만큼 4컷+본문은 자연히 아래로 */
+.book-spread .spread-page.left .page-left-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+/* 철학 카드(우측 상징 일러스트)는 1:1 정사각 유지 */
+.book-spread .right-illust { aspect-ratio: 1 / 1; }
+.book-spread .right-illust img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ────────── 노출제본 빈 템플릿 본문 페이지 (정밀 cm 매핑) ──────────
+   페이지 = 스프레드(29.7×21cm)의 절반 = 14.85 × 21 cm
+   상단여백 2.4cm = 높이 11.43% · 카드 10cm(1:1) = 너비 67.34% · 아래 8.6cm 필기 */
+.spread-page.tpl { padding: 0 !important; }
+.tpl-page { position: relative; width: 100%; height: 100%; }
+
+.tpl-topband {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 11.43%;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: 1.4%;
+}
+.tpl-topband .spread-subject {
+  border: 0; margin: 0; padding: 0;
+}
+
+.card-slot {
+  position: absolute;
+  top: 11.43%;
+  left: 16.33%;            /* (100 - 67.34)/2 — transform 없이 중앙 (html2canvas 안전) */
+  width: 67.34%;
+  aspect-ratio: 1 / 1;          /* 10 × 10 cm 정사각 */
+  background: var(--paper-warm);
+  border: 1px solid var(--rule);
+  box-shadow: 0 1px 4px var(--paper-shadow);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.card-slot img { width: 100%; height: 100%; }
+.card-slot img.card-illust { object-fit: cover; }
+.card-slot img.card-comic { object-fit: contain; background: #0d0d0d; }
+.card-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  font-family: var(--font-ui); font-size: 11px; color: var(--ink-muted);
+}
+.card-empty small { font-size: 9px; letter-spacing: 0.16em; color: var(--ink-faint); }
+
+/* 삼각 투명 코너 (사진 모서리 스크랩) */
+.card-slot .corner {
+  position: absolute; width: 9%; height: 9%;
+  border: 2px solid rgba(74, 48, 20, 0.38);
+}
+.card-slot .corner.tl { top: 3.2%; left: 3.2%; border-right: 0; border-bottom: 0; }
+.card-slot .corner.tr { top: 3.2%; right: 3.2%; border-left: 0; border-bottom: 0; }
+.card-slot .corner.bl { bottom: 3.2%; left: 3.2%; border-right: 0; border-top: 0; }
+.card-slot .corner.br { bottom: 3.2%; right: 3.2%; border-left: 0; border-top: 0; }
+
+/* 카드 아래 8.6cm 필기공간 (top 11.43% + 카드 47.62% ≈ 59%) */
+.write-space {
+  position: absolute;
+  top: 60%;
+  left: 16.2%;            /* 좌우 여백 ≈ 2.4cm, 카드 폭과 정렬 */
+  right: 16.2%;
+  bottom: 3%;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.write-space .text-body-wrap { flex: 1; min-height: 0; }
+.write-space .text-title.book-title-strong { margin-bottom: 6px !important; }
+.write-hint {
+  margin: auto auto 4px; text-align: center;
+  font-family: var(--font-ui); font-size: 9px;
+  letter-spacing: 0.22em; color: var(--ink-faint);
+}
+
+/* 카드 안: 좌(4컷) + 우(본문) 함께 — 카드=10cm 1:1 안에서 분할 */
+.card-slot .card-comicbook {
+  display: flex; width: 100%; height: 100%;
+  gap: 4%; padding: 4%;
+}
+.card-slot .cc-comic {
+  flex: 0 0 40%;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.card-slot .cc-comic img {
+  width: 100%; height: 100%; object-fit: contain; background: #0d0d0d;
+}
+.card-slot .cc-comic .cc-panel {
+  flex: 1; border: 1px solid var(--rule);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--paper-page);
+}
+.card-slot .cc-text {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.card-slot .cc-text .text-body-wrap { flex: 1; min-height: 0; }
+.card-slot .cc-text .text-title.book-title-strong {
+  font-size: 9px !important;
+  margin-bottom: 4px !important;
+  padding-bottom: 3px !important;
+  border-bottom-width: 1px !important;
+}
+.card-slot .card-illust { width: 100%; height: 100%; object-fit: cover; }
+
+/* 필기공간은 빈칸 — 가이드 문구만 옅게 */
+.write-space .write-hint { margin: auto auto 4px; }
+
+/* 카드 내부: 상단 주제·카테고리 헤더 + 좌(4컷)/우(본문) 정확히 50:50 */
+.card-slot .card-inner { display: flex; flex-direction: column; width: 100%; height: 100%; }
+.card-slot .card-cat {
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--font-display);
+  padding: 3% 4% 2.6%;
+  border-bottom: 1px solid var(--rule);
+}
+.card-slot .card-cat .cc-topic { font-size: 13px; font-weight: 700; font-style: italic; color: var(--ink); }
+.card-slot .card-cat .cc-cat   { font-size: 11px; font-style: italic; color: var(--ink-soft); }
+.card-slot .card-cat .orn      { font-size: 11px; color: var(--topic-accent); line-height: 1; }
+
+.card-slot .card-split { flex: 1; display: flex; min-height: 0; }
+.card-slot .card-split .cs-left {
+  flex: 0 0 50%; max-width: 50%;
+  border-right: 1px solid var(--rule);
+  display: flex; padding: 3%;
+}
+.card-slot .card-split .cs-left img { width: 100%; height: 100%; object-fit: contain; background: #0d0d0d; }
+.card-slot .cs-comic-ph { display: flex; flex-direction: column; gap: 2px; width: 100%; height: 100%; }
+.card-slot .cs-comic-ph .cc-panel {
+  flex: 1; border: 1px solid var(--rule);
+  display: flex; align-items: center; justify-content: center; background: var(--paper-page);
+}
+.card-slot .card-split .cs-right {
+  flex: 0 0 50%; max-width: 50%;
+  display: flex; flex-direction: column; overflow: hidden; padding: 3.5%;
+}
+.card-slot .cs-right .text-body-wrap { flex: 1; min-height: 0; }
+.card-slot .cs-right .text-title.book-title-strong {
+  font-size: 8.5px !important; margin-bottom: 3px !important;
+  padding-bottom: 2px !important; border-bottom-width: 1px !important;
+}
+.card-slot .card-body { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+.card-slot .card-body .card-illust { width: 100%; height: 100%; object-fit: cover; }
+.card-slot .card-body.card-empty { flex-direction: column; gap: 5px; }
+
+/* ── fix: 카드 카테고리 한 줄 고정(세로 줄바꿈 방지) + 미리보기와 동일 크기 ── */
+.card-slot .card-cat {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  gap: 6px;
+  padding: 2.2% 5% 1.8%;
+  min-width: 0;
+  overflow: hidden;
+}
+.card-slot .card-cat .cc-topic { font-size: 12px; white-space: nowrap; }
+.card-slot .card-cat .cc-cat   { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.card-slot .card-cat .orn      { font-size: 10px; flex: 0 0 auto; }
+
+/* ── fix: 필기공간 문구는 카드 아래 영역 가운데, 페이지번호와 겹치지 않게 ── */
+.write-space { top: 60%; bottom: 9%; }
+.write-space .write-hint { margin: auto; }
+.page-num {
+  bottom: 2%;
+  font-size: 10px;
+  color: var(--ink-muted);
+  background: var(--paper-page);
+  padding: 1px 7px;
+  border-radius: 2px;
+  z-index: 4;
+}
+
+/* ── fix: html2canvas(PDF)는 aspect-ratio 미지원 → 카드 정사각을 명시 높이로 ──
+   페이지 14.85×21cm: 카드 10cm = 너비 67.34% = 높이 47.62% (둘 다 명시 → 진짜 정사각) */
+.card-slot {
+  aspect-ratio: auto !important;
+  height: 47.62% !important;
+}
+
+/* ── fix: 4컷 검은 레터박스 제거(좌측 형식처럼 채움) ── */
+.card-slot .card-split .cs-left { padding: 0 !important; }
+.card-slot .card-split .cs-left img {
+  object-fit: cover !important;
+  background: var(--paper-page) !important;
+}
+
+/* ── fix: 카드 타이틀 크기·정렬 + 본문 정렬을 좌측 형식과 통일 ── */
+.card-slot .cs-right { padding: 4% 5% !important; }
+.card-slot .cs-right .text-title.book-title-strong {
+  font-size: 12px !important;
+  text-align: center !important;
+  font-style: italic !important;
+  line-height: 1.35 !important;
+  margin-bottom: 6px !important;
+  padding-bottom: 5px !important;
+  border-bottom: 1px solid var(--rule) !important;
+  word-break: keep-all;
+}
+.card-slot .cs-right .text-body {
+  text-align: left !important;
+  line-height: 1.7 !important;
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+.card-slot .cs-right .text-body-wrap { flex: 1; min-height: 0; }
+
+/* ── 카드 상단 카테고리 + 우측 타이틀 키우기 ── */
+.card-slot .card-cat .cc-topic { font-size: 17px !important; }
+.card-slot .card-cat .cc-cat   { font-size: 14px !important; }
+.card-slot .card-cat .orn      { font-size: 14px !important; }
+.card-slot .cs-right .text-title.book-title-strong {
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+  margin-bottom: 8px !important;
+  padding-bottom: 7px !important;
+}
+
+/* 카테고리 텍스트 = 우측 타이틀(16px)의 1.2배 */
+.card-slot .card-cat .cc-topic { font-size: 19.2px !important; }
+.card-slot .card-cat .cc-cat   { font-size: 15px !important; }
+.card-slot .card-cat .orn      { font-size: 15px !important; }
+
+/* ── 미리보기를 PDF와 동일 비율로: 글자를 카드 폭에 비례(컨테이너 단위) ──
+   PDF 카드폭 ≈ 666px 기준: 타이틀16→2.4cqi, 카테고리19.2→2.88cqi 등 */
+.card-slot { container-type: inline-size; }
+.card-slot .card-cat .cc-topic { font-size: 2.88cqi !important; }
+.card-slot .card-cat .cc-cat   { font-size: 2.25cqi !important; }
+.card-slot .card-cat .orn      { font-size: 2.25cqi !important; }
+.card-slot .cs-right .text-title.book-title-strong { font-size: 2.4cqi !important; }
+.card-slot .cs-right .text-title.book-title-strong .title-quote { font-size: inherit !important; }
+
+/* 미리보기: PDF와 동일 1980×1400 렌더 후 화면 폭에 맞춰 축소 (픽셀 동일) */
+.preview-stage { display: block; }
+.pv-scaler { position: relative; width: 100%; overflow: hidden; margin: 0 auto; }
+.book-spread.pv-fixed {
+  position: absolute; top: 0; left: 50%;
+  transform-origin: top center;
+  max-width: none;
+}
+
+/* ── 모서리 'ㄱ' 가이드 기준: 내용이 ㄱ 안쪽에 위치 + 4컷 정비례(잘림 없음) ── */
+.card-slot .corner { z-index: 3; }                 /* ㄱ 가이드는 항상 위(인쇄 기준선) */
+.card-slot .card-inner {
+  padding: 6.5% 7% !important;                     /* ㄱ 안쪽으로 내용 들임 */
+}
+.card-slot .card-cat {
+  padding: 0 0 2.6% !important;                    /* card-inner 패딩과 중복 제거 */
+}
+/* 4컷: 정비례 축소(전체 보임, 잘림 없음) · 검은띠 없이 종이톤 */
+.card-slot .card-split .cs-left {
+  padding: 0 !important;
+  align-items: center; justify-content: center;
+}
+.card-slot .card-split .cs-left img {
+  object-fit: contain !important;
+  background: var(--paper-page) !important;
+}
+.card-slot .card-split .cs-left .cs-comic-ph { width: 100%; height: 100%; }
+/* 우측 1:1 상징도 ㄱ 안에서 정비례 */
+.card-slot .card-body .card-illust {
+  object-fit: contain !important;
+  background: var(--paper-page) !important;
 }

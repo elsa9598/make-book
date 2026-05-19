@@ -1,6 +1,6 @@
 /* prompt-generator.jsx — 이미지 / 4컷 프롬프트 생성 페이지 */
 
-const { useState: useStatePG, useMemo: useMemoPG, useRef: useRefPG } = React;
+const { useState: useStatePG, useMemo: useMemoPG, useRef: useRefPG, useEffect: useEffectPG } = React;
 
 /* ────────── 공통: 선택 가능한 칩 그리드 ────────── */
 function OptionChips({ options, selected, onToggle, columns = 4 }) {
@@ -258,6 +258,79 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
     return mode === "comic" ? buildComicPrompt(builderState) : buildImagePrompt(builderState);
   }, [builderState, mode]);
 
+  // ───────── 프롬프트 작업 자동저장 + 실수 이탈 방지 ─────────
+  const DKEY = "prompt_draft_" + mode;
+  const pgHydrated = useRefPG(false);
+  const pgTimer = useRefPG(null);
+
+  const hasWork = () =>
+    chars.length || backgrounds.length || times.length || moods.length ||
+    weathers.length || lightings.length || cameras.length ||
+    customChars || customBg || customTime || customMood || customWeather ||
+    customLighting || customCamera || focusSubject || outFocus || focusPreset;
+
+  // 마운트 시 복원
+  useEffectPG(() => {
+    let alive = true;
+    (async () => {
+      if (!window.ArtbookStore) { pgHydrated.current = true; return; }
+      const s = await window.ArtbookStore.get(DKEY);
+      if (alive && s && typeof s === "object") {
+        s.chars && setChars(s.chars);
+        s.customChars && setCustomChars(s.customChars);
+        s.backgrounds && setBackgrounds(s.backgrounds);
+        s.customBg && setCustomBg(s.customBg);
+        s.times && setTimes(s.times);
+        s.customTime && setCustomTime(s.customTime);
+        s.moods && setMoods(s.moods);
+        s.customMood && setCustomMood(s.customMood);
+        s.weathers && setWeathers(s.weathers);
+        s.customWeather && setCustomWeather(s.customWeather);
+        s.lightings && setLightings(s.lightings);
+        s.customLighting && setCustomLighting(s.customLighting);
+        s.cameras && setCameras(s.cameras);
+        s.customCamera && setCustomCamera(s.customCamera);
+        s.focusPreset && setFocusPreset(s.focusPreset);
+        s.focusSubject && setFocusSubject(s.focusSubject);
+        s.outFocus && setOutFocus(s.outFocus);
+        s.artStyle && setArtStyle(s.artStyle);
+        s.ratio && setRatio(s.ratio);
+      }
+      pgHydrated.current = true;
+    })();
+    return () => { alive = false; };
+  }, [mode]);
+
+  // 변경 시 자동저장(0.6초 디바운스)
+  useEffectPG(() => {
+    if (!pgHydrated.current || !window.ArtbookStore) return;
+    clearTimeout(pgTimer.current);
+    pgTimer.current = setTimeout(() => {
+      window.ArtbookStore.set(DKEY, {
+        chars, customChars, backgrounds, customBg, times, customTime,
+        moods, customMood, weathers, customWeather, lightings, customLighting,
+        cameras, customCamera, focusPreset, focusSubject, outFocus,
+        artStyle, ratio, prompt, savedAt: new Date().toLocaleTimeString("ko-KR")
+      });
+    }, 600);
+  }, [chars, customChars, backgrounds, customBg, times, customTime, moods,
+      customMood, weathers, customWeather, lightings, customLighting, cameras,
+      customCamera, focusPreset, focusSubject, outFocus, artStyle, ratio, prompt]);
+
+  // 실수로 새로고침/이탈 시 경고 (트랙패드 제스처 등)
+  useEffectPG(() => {
+    const onBeforeUnload = (e) => {
+      if (hasWork()) { e.preventDefault(); e.returnValue = ""; return ""; }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  });
+
+  const guardedBack = () => {
+    if (hasWork() && !window.confirm("프롬프트 작업 중입니다. 작업실로 돌아갈까요?\n(작업은 자동저장되어 다시 열면 복원됩니다)")) return;
+    onBack && onBack();
+  };
+
   const onCopy = async () => {
     try {
       await navigator.clipboard.writeText(prompt);
@@ -286,7 +359,7 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
     <div className="pg-page">
       {/* 헤더 */}
       <div className="pg-header">
-        <button className="pg-back" onClick={onBack}>‹ 작업실로 돌아가기</button>
+        <button className="pg-back" onClick={guardedBack}>‹ 작업실로 돌아가기</button>
         <div className="pg-title-block">
           <h2>{title}</h2>
           <span className="pg-subtitle">{subtitle}</span>

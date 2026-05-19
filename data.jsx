@@ -68,41 +68,41 @@ function buildMockFiles() {
 
 const MOCK_FILES = buildMockFiles();
 
-/* 책 구조 — 60페이지 = 30 스프레드
-   페이지 1   : 표지(단독, a-side로 왼쪽 첫장)
-   페이지 2-4 : 프롤로그 (3p)
-   페이지 5-8 : 챕터 타이틀 (4p, 2장)
-   페이지 9-56: 본문 (48p, 24 works = 24 spreads)
-   페이지 57-60: 에필로그 (4p)
-   ※ 사용자 정의: 표지는 1페이지, 뒷표지는 60페이지로 가정
+/* 책 구조 — 노출 제본 빈 템플릿 아트북 (사용자 정의)
+   · 스프레드 0     : 표지 스프레드 (겉표지 + 뒷표지)
+   · 스프레드 1~24  : 본문 24편 (각 스프레드 = 2페이지 = 카드 2장)
+   · 페이지 번호     : 본문만 001~048, 좌측=홀수(_a), 우측=짝수(_b)
+   · 프롤로그/챕터/에필로그 없음. 총 25 스프레드, 카드 48장.
 */
 function getPageMeta(p) {
-  if (p === 1) return { section: "cover", label: "표지" };
-  if (p >= 2 && p <= 4) return { section: "prologue", label: `프롤로그 ${p - 1}/3` };
-  if (p >= 5 && p <= 6) return { section: "chapter", label: `1부 표제`, idx: 1 };
-  if (p >= 7 && p <= 8) return { section: "chapter", label: `2부 표제`, idx: 2 };
-  if (p >= 9 && p <= 56) {
-    const workIdx = Math.floor((p - 9) / 2) + 1;
+  if (p >= 1 && p <= 48) {
+    const workIdx = Math.floor((p - 1) / 2) + 1;
     return { section: "body", label: `본문 #${String(workIdx).padStart(2, "0")}`, workIdx };
   }
-  if (p >= 57 && p <= 59) return { section: "epilogue", label: `에필로그 ${p - 56}/3` };
-  if (p === 60) return { section: "back", label: "뒷표지" };
   return { section: "blank", label: "" };
 }
 
 function buildSpreads() {
-  // 30 spreads: (1,2), (3,4), ... (59,60)
-  // 단 사용자 정의 페이지1=a(왼쪽), 페이지2=b(오른쪽) → 스프레드는 (홀,짝)
   const spreads = [];
-  for (let i = 0; i < 30; i++) {
-    const left = i * 2 + 1;
-    const right = i * 2 + 2;
+  // 스프레드 0 — 표지 (겉표지 / 뒷표지)
+  spreads.push({
+    index: 0,
+    leftPage: 0,
+    rightPage: 0,
+    leftMeta: { section: "cover", label: "겉표지" },
+    rightMeta: { section: "back", label: "뒷표지" }
+  });
+  // 스프레드 1~24 — 본문
+  for (let i = 1; i <= 24; i++) {
+    const left = (i - 1) * 2 + 1;   // 1,3,5 … 47  (_a 왼쪽)
+    const right = (i - 1) * 2 + 2;  // 2,4,6 … 48  (_b 오른쪽)
     spreads.push({
       index: i,
       leftPage: left,
       rightPage: right,
-      leftMeta: getPageMeta(left),
-      rightMeta: getPageMeta(right)
+      workIdx: i,
+      leftMeta: { section: "body", label: `본문 #${String(i).padStart(2, "0")}`, workIdx: i },
+      rightMeta: { section: "body", label: `본문 #${String(i).padStart(2, "0")}`, workIdx: i }
     });
   }
   return spreads;

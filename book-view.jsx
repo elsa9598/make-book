@@ -7,20 +7,30 @@ const { useState: useStateBV, useRef: useRefBV } = React;
 function AutoFitBody({ text }) {
   const wrapRef = useRefBV();
   const innerRef = useRefBV();
-  const [fontSize, setFontSize] = useStateBV(11);
+  const [fontSize, setFontSize] = useStateBV(13);
 
   React.useEffect(() => {
-    const wrap = wrapRef.current;
-    const inner = innerRef.current;
-    if (!wrap || !inner) return;
-    let fs = 11;
-    inner.style.fontSize = fs + "px";
-    let guard = 40;
-    while (inner.scrollHeight > wrap.clientHeight && fs > 6 && guard-- > 0) {
-      fs -= 0.5;
+    const fit = () => {
+      const wrap = wrapRef.current;
+      const inner = innerRef.current;
+      if (!wrap || !inner || wrap.clientHeight < 8) return; // 숨김 상태(0높이) 측정 방지
+      let fs = 16;
       inner.style.fontSize = fs + "px";
+      let guard = 90;
+      while (inner.scrollHeight > wrap.clientHeight && fs > 7 && guard-- > 0) {
+        fs -= 0.5;
+        inner.style.fontSize = fs + "px";
+      }
+      setFontSize(fs);
+    };
+    fit();
+    const t1 = setTimeout(fit, 180);
+    let ro;
+    if (window.ResizeObserver && wrapRef.current) {
+      ro = new ResizeObserver(() => fit());
+      ro.observe(wrapRef.current);
     }
-    setFontSize(fs);
+    return () => { clearTimeout(t1); ro && ro.disconnect(); };
   }, [text]);
 
   return (
@@ -35,22 +45,32 @@ function AutoFitBody({ text }) {
 function AutoFitTextarea({ value, onChange, onExpand }) {
   const wrapRef = useRefBV();
   const taRef = useRefBV();
-  const [fontSize, setFontSize] = useStateBV(11);
+  const [fontSize, setFontSize] = useStateBV(13);
   const [fitWarn, setFitWarn] = useStateBV(false);
 
   React.useEffect(() => {
-    const wrap = wrapRef.current;
-    const ta = taRef.current;
-    if (!wrap || !ta) return;
-    ta.style.fontSize = "11px";
-    let fs = 11;
-    let guard = 40;
-    while (ta.scrollHeight > wrap.clientHeight && fs > 6 && guard-- > 0) {
-      fs -= 0.5;
+    const fit = () => {
+      const wrap = wrapRef.current;
+      const ta = taRef.current;
+      if (!wrap || !ta || wrap.clientHeight < 8) return;
+      let fs = 16;
       ta.style.fontSize = fs + "px";
+      let guard = 90;
+      while (ta.scrollHeight > wrap.clientHeight && fs > 7 && guard-- > 0) {
+        fs -= 0.5;
+        ta.style.fontSize = fs + "px";
+      }
+      setFontSize(fs);
+      setFitWarn(ta.scrollHeight > wrap.clientHeight);
+    };
+    fit();
+    const t1 = setTimeout(fit, 180);
+    let ro;
+    if (window.ResizeObserver && wrapRef.current) {
+      ro = new ResizeObserver(() => fit());
+      ro.observe(wrapRef.current);
     }
-    setFontSize(fs);
-    setFitWarn(ta.scrollHeight > wrap.clientHeight);
+    return () => { clearTimeout(t1); ro && ro.disconnect(); };
   }, [value]);
 
   return (
@@ -97,34 +117,8 @@ function BookGrid({ spreads, completed, onPickSpread, topic, coverImg, backImg, 
         </div>
       </div>
 
-      {/* 프롤로그 */}
-      <SectionHeader title="프롤로그" subtitle="prologue · p2–4" />
-      {spreads.slice(0, 2).map(sp => (
-        <SpreadCell key={sp.index} sp={sp} done={completed[sp.index]} onPick={() => onPickSpread(sp.index)} />
-      ))}
-      <div style={{gridColumn: "span 4"}}></div>
-
-      {/* 챕터 타이틀 */}
-      <SectionHeader title="챕터 표제" subtitle="chapter titles · p5–8" />
-      {spreads.slice(2, 4).map(sp => (
-        <SpreadCell key={sp.index} sp={sp} done={completed[sp.index]} onPick={() => onPickSpread(sp.index)} />
-      ))}
-      <div style={{gridColumn: "span 4"}}></div>
-
-      {/* 본문 */}
-      <SectionHeader title="본문" subtitle={`body · 24 works · p9–56`} />
-      {spreads.slice(4, 28).map(sp => (
-        <SpreadCell key={sp.index} sp={sp} done={completed[sp.index]} onPick={() => onPickSpread(sp.index)} />
-      ))}
-
-      {/* 에필로그 */}
-      <SectionHeader title="에필로그" subtitle="epilogue · p57–59" />
-      {spreads.slice(28, 30).map(sp => (
-        <SpreadCell key={sp.index} sp={sp} done={completed[sp.index]} onPick={() => onPickSpread(sp.index)} />
-      ))}
-
       {/* 뒷표지 */}
-      <SectionHeader title="뒷표지" subtitle="back · p60" />
+      <SectionHeader title="뒷표지" subtitle="back cover" />
       <CoverAttach
         side="back"
         img={backImg}
@@ -134,9 +128,15 @@ function BookGrid({ spreads, completed, onPickSpread, topic, coverImg, backImg, 
       />
       <div style={{gridColumn: "span 4", display: "flex", alignItems: "center", padding: "12px 16px"}}>
         <div className="hint">
-          뒷표지에는 짧은 헌사, 발문, 또는 단순 이미지를 올립니다. 책등에는 실 노출 제본으로 마감.
+          노출 제본 빈 템플릿 — 표지 1 스프레드 + 본문 24 스프레드(카드 48장). 책등은 실 노출 제본.
         </div>
       </div>
+
+      {/* 본문 — 24편 (001_a ~ 048_b) */}
+      <SectionHeader title="본문" subtitle="body · 24 spreads · 001_a–048_b" />
+      {spreads.slice(1).map(sp => (
+        <SpreadCell key={sp.index} sp={sp} done={completed[sp.index]} onPick={() => onPickSpread(sp.index)} />
+      ))}
     </div>
   );
 }
@@ -245,7 +245,7 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
   const [dirty, setDirty] = useStateBV(false);
   const [lastSaved, setLastSaved] = useStateBV(null);
   const [expandOpen, setExpandOpen] = useStateBV(false);
-  const [pdfBusy, setPdfBusy] = useStateBV(false);
+  const [busyKind, setBusyKind] = useStateBV(""); // "" | "pdf" | "card"
 
   // 미리보기 → 로컬 PDF 파일로 저장 (전 스프레드, 클라이언트 전용)
   const exportPDF = async () => {
@@ -257,17 +257,18 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
       window.print();
       return;
     }
+    if (busyKind) return;
     const po = document.querySelector(".print-only");
     if (!po) return;
-    setPdfBusy(true);
+    setBusyKind("pdf");
 
     const prevStyle = po.getAttribute("style") || "";
-    const W = 1600, H = 800; // 스프레드 2:1
+    const W = 1980, H = 1400; // 스프레드 29.7:21 (1980/1400 ≈ 1.4143)
     po.setAttribute("style",
       "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:#ffffff;z-index:-1;");
     const spreadsEls = Array.from(po.querySelectorAll(".print-spread"));
     const prevSpreadStyles = spreadsEls.map(el => el.getAttribute("style") || "");
-    spreadsEls.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;"));
+    spreadsEls.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;"));
 
     try {
       // 폰트/이미지 렌더 안정화
@@ -315,7 +316,71 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
     } finally {
       po.setAttribute("style", prevStyle);
       spreadsEls.forEach((el, i) => el.setAttribute("style", prevSpreadStyles[i]));
-      setPdfBusy(false);
+      setBusyKind("");
+    }
+  };
+
+  // 인쇄소용 — 페이지마다 10cm 정사각 카드 1장 (001_a~048_b, 48장) → pdf/card_pdf/
+  const exportCardPDF = async () => {
+    const jspdfNS = window.jspdf || window.jsPDF;
+    const JsPDF = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
+    if (!window.html2canvas || !JsPDF) { alert("PDF 라이브러리를 불러오지 못했습니다."); return; }
+    if (busyKind) return;
+    const po = document.querySelector(".print-only");
+    if (!po) return;
+    setBusyKind("card");
+
+    const prevStyle = po.getAttribute("style") || "";
+    const W = 1980, H = 1400;
+    po.setAttribute("style",
+      "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:#ffffff;z-index:-1;");
+    const spreadsEls = Array.from(po.querySelectorAll(".print-spread"));
+    const prevSpreadStyles = spreadsEls.map(el => el.getAttribute("style") || "");
+    spreadsEls.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;"));
+
+    try {
+      if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
+      await new Promise(r => setTimeout(r, 120));
+
+      // 본문 스프레드의 카드만 DOM 순서대로 = 001_a, 002_b, 003_a … 048_b
+      const cards = Array.from(po.querySelectorAll(".print-spread .card-slot"));
+      if (cards.length === 0) { alert("카드가 없습니다. 본문을 먼저 만들어 주세요."); return; }
+
+      const S = 1000; // 10cm @ 100dpi 상당 (정사각)
+      const doc = new JsPDF({ orientation: "portrait", unit: "px", format: [S, S] });
+      for (let i = 0; i < cards.length; i++) {
+        const canvas = await window.html2canvas(cards[i], {
+          scale: 2, useCORS: true, backgroundColor: "#ffffff"
+        });
+        const img = canvas.toDataURL("image/jpeg", 0.95);
+        if (i > 0) doc.addPage([S, S], "portrait");
+        doc.addImage(img, "JPEG", 0, 0, S, S);
+      }
+      const d = new Date();
+      const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0")
+        + "_" + String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
+      const fname = "아트북_" + (T ? T.nameKo : "book") + "_카드48_" + stamp + ".pdf";
+
+      let saved2 = false;
+      if (location.protocol === "http:" || location.protocol === "https:") {
+        try {
+          const b64 = doc.output("datauristring").split(",")[1];
+          const r = await fetch(location.origin + "/save-pdf", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: fname, data: b64, sub: "card_pdf" })
+          });
+          const j = await r.json();
+          if (j && j.ok) { saved2 = true; alert("카드 PDF 저장 완료 (" + cards.length + "장)\n" + j.path); }
+        } catch (e) { console.warn("[card-pdf] 폴더 저장 실패 → 다운로드:", e.message); }
+      }
+      if (!saved2) doc.save(fname);
+    } catch (e) {
+      console.error("[card-pdf] 생성 실패:", e);
+      alert("카드 PDF 생성 중 오류가 발생했습니다. 콘솔을 확인하세요.");
+    } finally {
+      po.setAttribute("style", prevStyle);
+      spreadsEls.forEach((el, i) => el.setAttribute("style", prevSpreadStyles[i]));
+      setBusyKind("");
     }
   };
 
@@ -357,9 +422,27 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
 
   const isBodySpread = sp.leftMeta.section === "body" && saved;
 
+  // 미리보기를 PDF와 동일한 1980×1400으로 렌더 → 화면 폭에 맞춰 축소(픽셀 단위 동일)
+  const stageRef = useRefBV();
+  const [pvScale, setPvScale] = useStateBV(0.4);
+  React.useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const calc = () => {
+      const w = el.clientWidth - 24;
+      setPvScale(Math.min(1, Math.max(0.18, w / 1980)));
+    };
+    calc();
+    let ro;
+    if (window.ResizeObserver) { ro = new ResizeObserver(calc); ro.observe(el); }
+    window.addEventListener("resize", calc);
+    return () => { ro && ro.disconnect(); window.removeEventListener("resize", calc); };
+  }, []);
+
   return (
-    <div className="preview-stage">
-      <div className="book-spread">
+    <div className="preview-stage" ref={stageRef}>
+      <div className="pv-scaler" style={{ height: (1400 * pvScale) + "px" }}>
+      <div className="book-spread pv-fixed" style={{ width: 1980, height: 1400, transform: "translateX(-50%) scale(" + pvScale + ")" }}>
         <PreviewPage
           page={sp.leftPage}
           meta={sp.leftMeta}
@@ -390,6 +473,7 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
           onExpandEdit={() => setExpandOpen(true)}
         />
       </div>
+      </div>
 
       <div className="preview-nav">
         <button
@@ -398,7 +482,9 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
           onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
         >‹</button>
         <span className="pages">
-          {String(sp.leftPage).padStart(2, "0")} – {String(sp.rightPage).padStart(2, "0")} / 60
+          {sp.leftMeta.section === "body"
+            ? `${String(sp.leftPage).padStart(3, "0")}_a – ${String(sp.rightPage).padStart(3, "0")}_b / 048`
+            : "표지 스프레드"}
         </span>
         <button
           className="nav-arrow"
@@ -409,10 +495,18 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
         <button
           className="btn pdf-btn"
           onClick={exportPDF}
-          disabled={pdfBusy}
-          title="전 스프레드를 .pdf 파일로 로컬에 저장합니다 (다운로드 폴더)"
+          disabled={!!busyKind}
+          title="전 스프레드를 .pdf 파일로 로컬에 저장합니다 (pdf 폴더)"
         >
-          {pdfBusy ? "PDF 생성 중…" : "▤ PDF 저장"}
+          {busyKind === "pdf" ? "PDF 생성 중…" : (busyKind ? "▤ PDF 저장" : "▤ PDF 저장")}
+        </button>
+        <button
+          className="btn pdf-btn"
+          onClick={exportCardPDF}
+          disabled={!!busyKind}
+          title="페이지마다 10cm 정사각 카드 1장 (001_a~048_b, 48장) — 인쇄소용 · pdf/card_pdf/ 저장"
+        >
+          {busyKind === "card" ? "카드 생성 중…" : "▣ PDF카드"}
         </button>
       </div>
 
@@ -680,100 +774,82 @@ function PreviewPage({ page, meta, topic, coverImg, backImg, data, comicSide, si
     );
   }
 
-  // 본문 (작품)
+  // 본문 (작품) — 노출제본 빈 템플릿: 상단 2.4cm 여백 → 10cm 1:1 카드 → 8.6cm 필기공간
   if (meta.section === "body") {
     const isLeft = side === "left";
-    // 4컷 위치 — 기본: 왼쪽에 4컷+글, 오른쪽 일러스트
     const showComicHere = (comicSide === "left" && isLeft) || (comicSide === "right" && !isLeft);
+    const cardImg = showComicHere ? data?.comicImg : data?.illustImg;
 
-    if (showComicHere) {
-      return (
-        <div className={"spread-page " + side}>
-          <div className="page-left-content">
-            <div className="left-comic placeholder-label">
-              {data?.comicImg ? (
-                <img src={data.comicImg} alt="" />
-              ) : [0,1,2,3].map(i => (
-                <div key={i}>
-                  <PanelGlyph shape={["circle","triangle","square","wave"][((meta.workIdx || 0) + i) % 4]} />
-                </div>
-              ))}
-            </div>
-            <div className="left-text">
-              {(() => {
-                const source = editable ? (editBuf || "") : (data?.body || "");
-                const lines = source.split("\n");
-                const firstIdx = lines.findIndex(l => l.trim().length > 0);
-                const titleLine = firstIdx >= 0 ? lines[firstIdx] : "";
-                if (editable) {
-                  const titleIdx = lines.findIndex(l => l.trim().length > 0);
-                  const restEditable = titleIdx >= 0
-                    ? lines.slice(titleIdx + 1).join("\n")
-                    : "";
-                  return (
-                    <>
-                      <div className="text-title book-title-strong">
-                        <span className="title-quote">“{titleLine || `사유 #${meta.workIdx}`}”</span>
+    const source = editable ? (editBuf || "") : (data?.body || "");
+    const lines0 = source.split("\n");
+    const fIdx = lines0.findIndex(l => l.trim().length > 0);
+    const titleLine = fIdx >= 0 ? lines0[fIdx] : "";
+
+    return (
+      <div className={"spread-page tpl " + side}>
+        <div className="tpl-page">
+          {/* 상단 2.4cm — 순수 여백 (글자 없음) */}
+          <div className="tpl-topband"></div>
+
+          {/* 10cm 정사각 철학 카드 — 카드 안: 주제·카테고리 헤더 + (좌 4컷 / 우 본문) 정확히 2등분 */}
+          <div className="card-slot">
+            <span className="corner tl"></span><span className="corner tr"></span>
+            <span className="corner bl"></span><span className="corner br"></span>
+            <div className="card-inner">
+              <div className="card-cat">
+                <span className="orn">⚜</span>
+                <span className="cc-topic">{T?.nameKo}</span>
+                {data?.category && <span className="cc-cat">· {data.category}</span>}
+                <span className="orn">⚜</span>
+              </div>
+              {showComicHere ? (
+                <div className="card-split">
+                  <div className="cs-left">
+                    {data?.comicImg ? (
+                      <img src={data.comicImg} alt="" />
+                    ) : (
+                      <div className="cs-comic-ph">
+                        {[0,1,2,3].map(i => (
+                          <div key={i} className="cc-panel">
+                            <PanelGlyph shape={["circle","triangle","square","wave"][((meta.workIdx || 0) + i) % 4]} />
+                          </div>
+                        ))}
                       </div>
-                      <AutoFitTextarea
-                        value={restEditable}
-                        onChange={(v) => {
-                          // title 유지 + 새 body 결합
-                          const newSource = (titleLine ? titleLine + "\n" : "") + v;
-                          setEditBuf(newSource);
-                        }}
-                        onExpand={onExpandEdit}
-                      />
-                    </>
-                  );
-                }
-                // 빈 줄 제거
-                const restCompact = (firstIdx >= 0
-                  ? lines.slice(firstIdx + 1).join("\n")
-                  : "")
-                  .replace(/\n\s*\n+/g, "\n")
-                  .trim();
-                return (
-                  <>
+                    )}
+                  </div>
+                  <div className="cs-right">
                     <div className="text-title book-title-strong">
                       <span className="title-quote">“{titleLine || `사유 #${meta.workIdx}`}”</span>
                     </div>
-                    <AutoFitBody text={restCompact} />
-                  </>
-                );
-              })()}
+                    {editable ? (
+                      <AutoFitTextarea
+                        value={fIdx >= 0 ? lines0.slice(fIdx + 1).join("\n") : ""}
+                        onChange={(v) => setEditBuf((titleLine ? titleLine + "\n" : "") + v)}
+                        onExpand={onExpandEdit}
+                      />
+                    ) : (
+                      <AutoFitBody text={(fIdx >= 0 ? lines0.slice(fIdx + 1).join("\n") : "").replace(/\n\s*\n+/g, "\n").trim()} />
+                    )}
+                  </div>
+                </div>
+              ) : data?.illustImg ? (
+                <div className="card-body"><img src={data.illustImg} alt="" className="card-illust" /></div>
+              ) : (
+                <div className="card-body card-empty">
+                  <span>1:1 상징 카드</span><small>10 × 10 cm</small>
+                </div>
+              )}
             </div>
           </div>
-          <div className="page-num">{page}</div>
-        </div>
-      );
-    } else {
-      return (
-        <div className={"spread-page " + side}>
-          <div className="right-illust" style={{height: "100%"}}>
-            {data?.illustImg ? (
-              <img src={data.illustImg} alt="" />
-            ) : (
-              <svg viewBox="0 0 100 100" style={{width: "55%", height: "55%"}}>
-                {(() => {
-                  const seed = meta.workIdx || 0;
-                  const glyphs = [
-                    <g key="g1"><circle cx="50" cy="40" r="22" stroke="var(--ink)" strokeWidth="1.4" fill="none"/><path d="M30,65 L70,65" stroke="var(--ink)" strokeWidth="1.4"/></g>,
-                    <g key="g2"><path d="M30,30 L70,30 L50,70 Z" stroke="var(--ink)" strokeWidth="1.4" fill="none"/></g>,
-                    <g key="g3"><circle cx="40" cy="40" r="14" stroke="var(--ink)" strokeWidth="1.4" fill="none"/><circle cx="60" cy="55" r="14" stroke="var(--ink)" strokeWidth="1.4" fill="none"/></g>,
-                    <g key="g4"><path d="M25,50 Q50,20 75,50" stroke="var(--ink)" strokeWidth="1.4" fill="none"/><path d="M25,55 Q50,80 75,55" stroke="var(--ink)" strokeWidth="1.4" fill="none"/></g>,
-                    <g key="g5"><rect x="30" y="25" width="40" height="40" stroke="var(--ink)" strokeWidth="1.4" fill="none"/><line x1="30" y1="25" x2="70" y2="65" stroke="var(--ink)" strokeWidth="1.2"/></g>,
-                    <g key="g6"><circle cx="50" cy="50" r="22" stroke="var(--ink)" strokeWidth="1.4" fill="none"/><circle cx="50" cy="50" r="10" stroke="var(--ink)" strokeWidth="1.4" fill="none"/></g>
-                  ];
-                  return glyphs[seed % glyphs.length];
-                })()}
-              </svg>
-            )}
+
+          {/* 카드 아래 8.6cm — 순수 필기 공간(빈칸) */}
+          <div className="write-space">
+            <div className="write-hint">필기 공간 · 8.6 cm</div>
           </div>
-          <div className="page-num">{page}</div>
         </div>
-      );
-    }
+        <div className="page-num">{page}</div>
+      </div>
+    );
   }
 
   return (
