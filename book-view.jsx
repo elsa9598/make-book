@@ -483,6 +483,52 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
     }
   };
 
+  // 미리보기에서 시각 확인 후 — 이 스프레드 1개만 '확정' (본문+이미지 묶음 디스크 확정 + 잠금 표시)
+  const onConfirmSpread = () => {
+    if (!saved) return;
+    const body = dirty ? editBuf : (saved.body || "");
+    const now = new Date();
+    const stamp = now.toLocaleString("ko-KR");
+    const next = { ...saved, body, confirmed: true, confirmedAt: stamp };
+    setCompleted({ ...completed, [sp.index]: next });
+    setDirty(false);
+    setLastSaved(now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " · 확정");
+
+    if ((location.protocol === "http:" || location.protocol === "https:") && sp.leftMeta.section === "body") {
+      const pad = n => String(n).padStart(3, "0");
+      const splitDU = (u) => {
+        if (!u || u.indexOf(",") < 0) return null;
+        const m = /data:image\/(\w+)/.exec(u);
+        return { ext: m ? m[1].replace("jpeg", "jpg") : "jpg", b64: u.split(",")[1] };
+      };
+      const aId = pad(sp.leftPage) + "_a", bId = pad(sp.rightPage) + "_b";
+      const aImg = splitDU(next.comicImg), bImg = splitDU(next.illustImg);
+      const vs = now.getFullYear() + String(now.getMonth() + 1).padStart(2, "0") + String(now.getDate()).padStart(2, "0")
+        + "_" + String(now.getHours()).padStart(2, "0") + String(now.getMinutes()).padStart(2, "0") + String(now.getSeconds()).padStart(2, "0");
+      fetch(location.origin + "/save-page", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          book: String(next.book || 1).padStart(2, "0") + "권",
+          pages: [
+            { id: aId, files: [
+              { name: aId + ".txt", text: body },
+              ...(aImg ? [{ name: aId + "." + aImg.ext, b64: aImg.b64 }] : []),
+              { sub: "versions", name: aId + "_" + vs + ".txt", text: body },
+              ...(aImg ? [{ sub: "versions", name: aId + "_" + vs + "." + aImg.ext, b64: aImg.b64 }] : [])
+            ]},
+            { id: bId, files: [
+              ...(bImg ? [{ name: bId + "." + bImg.ext, b64: bImg.b64 }] : []),
+              ...(bImg ? [{ sub: "versions", name: bId + "_" + vs + "." + bImg.ext, b64: bImg.b64 }] : []),
+              { sub: "versions", name: bId + "_" + vs + ".txt", text: body }
+            ]}
+          ]
+        })
+      }).then(r => r.json()).then(j => {
+        if (j && j.ok) setLastSaved(now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " · 확정·폴더 저장");
+      }).catch(e => console.warn("[confirm] 디스크 확정 실패:", e.message));
+    }
+  };
+
   const isBodySpread = sp.leftMeta.section === "body" && saved;
 
   // 미리보기를 PDF와 동일한 1980×1400으로 렌더 → 화면 폭에 맞춰 축소(픽셀 단위 동일)
@@ -637,17 +683,28 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
         <div className="preview-edit-bar">
           <div className="edit-status">
             {dirty
-              ? <span style={{color: "#a83232"}}>● 텍스트가 수정되었습니다 — 저장하세요</span>
-              : (lastSaved ? <span>✓ 저장됨 · {lastSaved}</span> : null)
+              ? <span style={{color: "#a83232"}}>● 텍스트가 수정되었습니다 — 저장 또는 확정하세요</span>
+              : (saved && saved.confirmed
+                  ? <span style={{color: "#2f5d3a"}}>✓ 확정됨 · {saved.confirmedAt}</span>
+                  : (lastSaved ? <span>✓ 저장됨 · {lastSaved}</span>
+                      : <span style={{color: "var(--ink-soft)"}}>미리보기 확인 후 ‘확정’을 누르세요</span>))
             }
           </div>
           <button
-            className="btn primary"
+            className="btn"
             disabled={!dirty}
             onClick={onSaveEdit}
-            style={{fontSize: 10}}
+            style={{fontSize: 10, marginRight: 6}}
           >
             저장
+          </button>
+          <button
+            className="btn primary"
+            onClick={onConfirmSpread}
+            style={{fontSize: 10, background: "#2f5d3a", borderColor: "#2f5d3a" }}
+            title="이 스프레드 1개를 확정 — 본문+이미지 묶음을 디스크에 확정 저장(versions 스냅샷)"
+          >
+            {saved && saved.confirmed && !dirty ? "✓ 확정됨 · 재확정" : "✓ 확정"}
           </button>
         </div>
       )}

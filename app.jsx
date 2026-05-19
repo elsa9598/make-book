@@ -173,11 +173,15 @@ function App() {
       if (saved.quote != null) setQuote(saved.quote);
       if (saved.book) setBookNo(saved.book);
     } else {
+      // 새 스프레드 — 완전 리셋: 카테고리부터 스토리·프롬프트 새로 시작
       setBody("");
       setPickedComic(null);
       setPickedIllust(null);
       setComicImg(null);
       setIllustImg(null);
+      const T0 = window.TOPICS[topic];
+      if (T0 && T0.categories && T0.categories.length) setCategory(T0.categories[0]);
+      setQuote("");
     }
     setRetryLog([]);
     setVersions([]);
