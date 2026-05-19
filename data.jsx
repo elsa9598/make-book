@@ -118,8 +118,24 @@ function panelArt(seed, panelIdx) {
   return s;
 }
 
+/* 카테고리 한→영 (영문판 카드 헤더용 · 철학 표준 용어) */
+const CATEGORY_EN = {
+  // 탈무드
+  "지혜": "Wisdom", "관계": "Relationships", "돈과 부": "Money & Wealth",
+  "교육": "Education", "정의": "Justice", "용기": "Courage", "겸손": "Humility",
+  "시간": "Time", "신앙": "Faith", "가족": "Family",
+  // 니체
+  "초인": "The Overman", "권력 의지": "Will to Power", "영원회귀": "Eternal Recurrence",
+  "자기극복": "Self-Overcoming", "고독": "Solitude", "운명애": "Amor Fati",
+  "도덕": "Morality", "예술": "Art", "허무": "Nihilism", "춤과 웃음": "Dance & Laughter",
+  // 쇼펜하우어
+  "의지": "The Will", "고통": "Suffering", "행복": "Happiness", "권태": "Boredom",
+  "동정": "Compassion", "성격": "Character", "독서": "Reading", "죽음": "Death"
+};
+
 Object.assign(window, {
   TOPICS,
+  CATEGORY_EN,
   MOCK_FILES,
   BOOK_SPREADS,
   getPageMeta,
