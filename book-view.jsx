@@ -128,12 +128,12 @@ function BookGrid({ spreads, completed, onPickSpread, topic, coverImg, backImg, 
       />
       <div style={{gridColumn: "span 4", display: "flex", alignItems: "center", padding: "12px 16px"}}>
         <div className="hint">
-          노출 제본 빈 템플릿 — 표지 1 스프레드 + 본문 24 스프레드(카드 48장). 책등은 실 노출 제본.
+          노출 제본 빈 템플릿 — 표지 1 스프레드 + 본문 15 스프레드(카드 30장). 책등은 실 노출 제본.
         </div>
       </div>
 
       {/* 본문 — 24편 (001_a ~ 048_b) */}
-      <SectionHeader title="본문" subtitle="body · 24 spreads · 001_a–048_b" />
+      <SectionHeader title="본문" subtitle="body · 15 spreads · 001_a–030_b" />
       {spreads.slice(1).map(sp => (
         <SpreadCell key={sp.index} sp={sp} done={completed[sp.index]} onPick={() => onPickSpread(sp.index)} />
       ))}
@@ -597,7 +597,7 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
         >‹</button>
         <span className="pages">
           {sp.leftMeta.section === "body"
-            ? `${String(sp.leftPage).padStart(3, "0")}_a – ${String(sp.rightPage).padStart(3, "0")}_b / 048`
+            ? `${String(sp.leftPage).padStart(3, "0")}_a – ${String(sp.rightPage).padStart(3, "0")}_b / 030`
             : "표지 스프레드"}
         </span>
         <button

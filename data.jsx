@@ -93,7 +93,7 @@ function buildSpreads() {
     rightMeta: { section: "back", label: "뒷표지" }
   });
   // 스프레드 1~24 — 본문
-  for (let i = 1; i <= 24; i++) {
+  for (let i = 1; i <= 15; i++) {
     const left = (i - 1) * 2 + 1;   // 1,3,5 … 47  (_a 왼쪽)
     const right = (i - 1) * 2 + 2;  // 2,4,6 … 48  (_b 오른쪽)
     spreads.push({

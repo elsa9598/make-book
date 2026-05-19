@@ -478,17 +478,31 @@ function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetr
           </div>
           <div className="version-rows">
             {versions.map((v, i) => (
-              <button
+              <div
                 key={v.id}
                 className={"version-row" + (activeVer === i ? " active" : "")}
-                onClick={() => restoreVersion(i)}
+                style={{ display: "flex", alignItems: "center", gap: 6 }}
                 title={`${v.savedAt} · ${v.source === "ai" ? "AI" : "수정"}`}
               >
                 <span className="v-tag">v{i+1}</span>
                 <span className="v-source">{v.source === "ai" ? "✷ AI" : "✎ 수정"}</span>
                 <span className="v-lines">{v.lines}줄</span>
-                <span className="v-snip">{v.text.replace(/\n/g, " ").slice(0, 36)}…</span>
-              </button>
+                <span
+                  className="v-snip"
+                  style={{ flex: 1, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  onClick={() => { setOutput(v.text); setActiveVer(i); setDirty(false); }}
+                  title="클릭: 미리보기(저장 안 함)"
+                >{v.text.replace(/\n/g, " ").slice(0, 32)}…</span>
+                <button
+                  className="btn"
+                  style={{ fontSize: 10, padding: "3px 8px", flexShrink: 0,
+                           background: activeVer === i ? "#2f5d3a" : undefined,
+                           color: activeVer === i ? "#f6ecd6" : undefined }}
+                  disabled={locked}
+                  onClick={() => restoreVersion(i)}
+                  title="이 버전을 지금 스프레드 페이지에 적용(저장). 확정은 아님"
+                >이 페이지에 적용</button>
+              </div>
             ))}
           </div>
         </div>

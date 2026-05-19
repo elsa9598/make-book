@@ -7,7 +7,7 @@ const { useState: useStateUT, useMemo: useMemoUT } = React;
 const LEDGER_KEY = "artbook_quote_ledger_v1";
 const BOOKNO_KEY = "artbook_book_no_v1";
 const SERIES_BOOKS = 30;     // 주제별 30권
-const WORKS_PER_BOOK = 24;   // 권당 본문 24편
+const WORKS_PER_BOOK = 15;   // 권당 본문 15편(탈무드5+니체5+쇼펜하우어5)
 const TARGET_PER_TOPIC = SERIES_BOOKS * WORKS_PER_BOOK; // 720
 
 function ledgerLoad() {

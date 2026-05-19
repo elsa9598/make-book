@@ -153,7 +153,7 @@ function App() {
     if (tab !== "preview") return;
     const onKey = (e) => {
       if (e.key === "ArrowLeft") setPreviewSpread(i => Math.max(0, i - 1));
-      if (e.key === "ArrowRight") setPreviewSpread(i => Math.min(24, i + 1));
+      if (e.key === "ArrowRight") setPreviewSpread(i => Math.min(15, i + 1));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -383,7 +383,7 @@ function App() {
 
   // 다음 스프레드로 이동 (useEffect가 상태 복원/초기화 담당)
   const goNextBody = () => {
-    setCurrentSpread(Math.min(24, currentSpread + 1));
+    setCurrentSpread(Math.min(15, currentSpread + 1));
   };
 
   return (
@@ -409,7 +409,7 @@ function App() {
             </select>
             / {window.QuoteLedger.SERIES_BOOKS}권
           </label>
-          <span>완성 {Object.keys(completed).length}/24</span>
+          <span>완성 {Object.keys(completed).length}/15</span>
           <span>대장 {window.QuoteLedger.topicUsedCount(ledger, topic)}/{window.QuoteLedger.TARGET_PER_TOPIC}</span>
           <span title="새로고침·재부팅에도 보존 (IndexedDB, 백업본 5개 유지)">
             {savedAt ? `자동저장 ${savedAt}` : "자동저장 대기"}
@@ -697,7 +697,7 @@ function Workshop(props) {
               {sp.leftMeta.label} · {sp.rightMeta.label}
             </div>
             <div style={{fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-muted)", marginTop: 2}}>
-              {leftFile} · {rightFile} · pp.{String(sp.leftPage).padStart(3,"0")}–{String(sp.rightPage).padStart(3,"0")} · 스프레드 {currentSpread + 1}/25
+              {leftFile} · {rightFile} · pp.{String(sp.leftPage).padStart(3,"0")}–{String(sp.rightPage).padStart(3,"0")} · 스프레드 {currentSpread + 1}/16
             </div>
           </div>
           <div style={{display: "flex", gap: 6}}>
@@ -708,7 +708,7 @@ function Workshop(props) {
             >‹ 이전</button>
             <button
               className="btn ghost"
-              disabled={currentSpread >= 24}
+              disabled={currentSpread >= 15}
               onClick={goNextBody}
             >다음 ›</button>
           </div>
