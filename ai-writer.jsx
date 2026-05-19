@@ -254,7 +254,7 @@ ${category}은 그래서 외부에서 오지 않는다.
   return samples[topic] || samples.talmud;
 }
 
-function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetryLog, busy, setBusy, versions, setVersions, onSaveToBook }) {
+function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetryLog, busy, setBusy, versions, setVersions, onSaveToBook, locked }) {
   const [dirty, setDirty] = useState(false);
   const [activeVer, setActiveVer] = useState(null);
   const [genVia, setGenVia] = useState("");
@@ -278,9 +278,12 @@ function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetr
   };
 
   const restoreVersion = (i) => {
-    setOutput(versions[i].text);
+    const picked = versions[i].text;
+    setOutput(picked);
     setActiveVer(i);
     setDirty(false);
+    // 픽한 버전을 해당 페이지에 즉시 저장 (자동저장·복구·PDF에 반영)
+    if (onSaveToBook) onSaveToBook(picked);
   };
   const onGenerate = async () => {
     if (!topic || !category || !quote) return;
@@ -452,17 +455,17 @@ function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetr
           )}
           <button
             className="btn"
-            disabled={!output.trim() || !dirty || busy}
+            disabled={!output.trim() || !dirty || busy || locked}
             onClick={() => saveVersion("manual")}
           >
             저장
           </button>
           <button
             className="btn primary"
-            disabled={!topic || !category || !quote || busy}
+            disabled={!topic || !category || !quote || busy || locked}
             onClick={onGenerate}
           >
-            {busy ? "생성 중…" : (output ? "다시 생성" : "본문 생성")}
+            {locked ? "🔒 확정됨" : (busy ? "생성 중…" : (output ? "다시 생성" : "본문 생성"))}
           </button>
         </div>
       </div>

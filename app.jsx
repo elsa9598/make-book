@@ -172,6 +172,7 @@ function App() {
       if (saved.category) setCategory(saved.category);
       if (saved.quote != null) setQuote(saved.quote);
       if (saved.book) setBookNo(saved.book);
+      setVersions(Array.isArray(saved.versions) ? saved.versions : []); // 생성 이력 복원
     } else {
       // 새 스프레드 — 완전 리셋: 카테고리부터 스토리·프롬프트 새로 시작
       setBody("");
@@ -182,17 +183,36 @@ function App() {
       const T0 = window.TOPICS[topic];
       if (T0 && T0.categories && T0.categories.length) setCategory(T0.categories[0]);
       setQuote("");
+      setVersions([]);
     }
     setRetryLog([]);
-    setVersions([]);
   }, [currentSpread]);
 
   const sp = window.BOOK_SPREADS[currentSpread];
   const leftFile = `${String(sp.leftPage).padStart(3, "0")}_a.jpg`;
   const rightFile = `${String(sp.rightPage).padStart(3, "0")}_b.jpg`;
 
+  // 이 스프레드가 '확정'되었나 → 확정 시 새 본문이 덮어쓰지 못하게 잠금
+  const spreadLocked = !!(completed[currentSpread] && completed[currentSpread].confirmed);
+
+  const onUnlockSpread = () => {
+    setCompleted(prev => {
+      const cur = prev[currentSpread];
+      if (!cur) return prev;
+      const { confirmed, confirmedAt, ...rest } = cur;
+      return { ...prev, [currentSpread]: rest };
+    });
+    setToast({ kind: "ok", text: "🔓 이 스프레드 잠금 해제 — 이제 새 본문을 적용할 수 있습니다" });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   // 본문이 저장되면 즉시 완성함에 광안 반영 (메모·미리보기 연동)
   const saveBodyToBook = (text) => {
+    if (completed[currentSpread] && completed[currentSpread].confirmed) {
+      setToast({ kind: "warn", text: `🔒 확정된 스프레드(본문#${String(currentSpread).padStart(2,"0")})입니다 — 잠금 해제 후에만 새 본문이 적용됩니다` });
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
     setCompleted(prev => ({
       ...prev,
       [currentSpread]: {
@@ -207,12 +227,29 @@ function App() {
     }));
   };
 
+  // 생성한 본문 후보들(versions)을 해당 스프레드에 영구 보존
+  // → 프롬프트 페이지 갔다 와도/새로고침해도 픽한 것·후보 전부 유지(복구 가능)
+  useEffect(() => {
+    if (!versions || versions.length === 0) return;
+    if (completed[currentSpread] && completed[currentSpread].confirmed) return; // 확정 스프레드 보호
+    setCompleted(prev => {
+      const cur = prev[currentSpread] || {};
+      if (cur.versions === versions) return prev;
+      return { ...prev, [currentSpread]: { ...cur, versions, topic, category, quote } };
+    });
+  }, [versions]);
+
   // MAKE 가능 조건: 본문 + 이미지 2장 첨부 (폴더 선택은 참고용)
   const canMake = sp.leftMeta.section === "body"
     && body.trim().length > 0
     && comicImg && illustImg;
 
   const onMake = () => {
+    if (completed[currentSpread] && completed[currentSpread].confirmed) {
+      setToast({ kind: "warn", text: `🔒 확정된 스프레드입니다 — 다시 만들려면 ‘잠금 해제’ 후 진행하세요` });
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
     // 시리즈 중복 방지 — 이미 다른 권/본문에 쓴 명언이면 차단
     const reg = window.QuoteLedger.register(ledger, topic, quote, {
       book: bookNo, spread: currentSpread,
@@ -403,6 +440,7 @@ function App() {
           busy={busy} setBusy={setBusy}
           versions={versions} setVersions={setVersions}
           onSaveToBook={saveBodyToBook}
+          spreadLocked={spreadLocked} onUnlockSpread={onUnlockSpread}
           pickedComic={pickedComic} setPickedComic={setPickedComic}
           pickedIllust={pickedIllust} setPickedIllust={setPickedIllust}
           comicImg={comicImg} setComicImg={setComicImg}
@@ -524,6 +562,7 @@ function Workshop(props) {
     currentSpread, setCurrentSpread,
     body, setBody, retryLog, setRetryLog, busy, setBusy,
     versions, setVersions, onSaveToBook,
+    spreadLocked, onUnlockSpread,
     pickedComic, setPickedComic, pickedIllust, setPickedIllust,
     comicImg, setComicImg, illustImg, setIllustImg,
     completed, leftFile, rightFile, canMake, onMake, onDeleteSpread, goNextBody, tweakValues,
@@ -592,6 +631,16 @@ function Workshop(props) {
         </div>
 
         <div className="panel-section">
+          {spreadLocked && (
+            <div style={{
+              background: "#3a2a2a", color: "#f6ecd6", padding: "10px 12px",
+              border: "1px solid #a83232", marginBottom: 12, fontSize: 12,
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10
+            }}>
+              <span>🔒 확정된 스프레드입니다. 새 본문은 적용되지 않습니다.</span>
+              <button className="btn" style={{ fontSize: 11 }} onClick={onUnlockSpread}>🔓 잠금 해제</button>
+            </div>
+          )}
           <window.AiWriter
             topic={topic} category={category} quote={quote}
             output={body} setOutput={setBody}
@@ -599,6 +648,7 @@ function Workshop(props) {
             busy={busy} setBusy={setBusy}
             versions={versions} setVersions={setVersions}
             onSaveToBook={onSaveToBook}
+            locked={spreadLocked}
           />
         </div>
       </aside>
