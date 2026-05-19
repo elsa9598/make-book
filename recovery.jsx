@@ -47,6 +47,58 @@ function RecoveryPanel({ completed, setCompleted, setToast }) {
     setTimeout(() => setToast && setToast(null), 4000);
   };
 
+  // 명언으로 올바른 주제·카테고리 자동 판별
+  const normQ = (s) => (s || "").replace(/^["'“”‘’\s]+|["'“”‘’\s.]+$/g, "").trim();
+  const findQuoteCat = (q) => {
+    const Q = window.QUOTES || {};
+    const key = normQ(q);
+    if (!key) return null;
+    for (const tp of Object.keys(Q)) {
+      const cats = Q[tp] || {};
+      for (const cat of Object.keys(cats)) {
+        if ((cats[cat] || []).some(x => normQ(x) === key)) return { topic: tp, category: cat };
+      }
+    }
+    return null;
+  };
+  const realQuote = (d) => {
+    const fl = (d.body || "").split("\n").map(l => l.trim()).find(Boolean) || "";
+    return d.confirmed ? (fl || d.quote || "") : (d.quote || fl || "");
+  };
+
+  // 카테고리·구절을 명언 풀 기준으로 자동 정정 (잘못 박힌 #1 등)
+  const fixCategories = () => {
+    if (!ws || !ws.completed) return;
+    const next = {};
+    let fixed = 0;
+    Object.keys(ws.completed).forEach(k => {
+      const d = { ...ws.completed[k] };
+      const hit = findQuoteCat(realQuote(d));
+      if (hit) {
+        if (d.topic !== hit.topic || d.category !== hit.category) fixed++;
+        d.topic = hit.topic; d.category = hit.category;
+        const fl = (d.body || "").split("\n").map(l => l.trim()).find(Boolean) || "";
+        if (d.confirmed && fl) d.quote = fl;
+      }
+      next[k] = d;
+    });
+    setCompleted(next);
+    setWs({ ...ws, completed: next });
+    setToast && setToast({ kind: "ok", text: `🛠 ${fixed}개 항목 카테고리·구절 자동 정정 (명언 기준)` });
+    setTimeout(() => setToast && setToast(null), 3500);
+  };
+
+  // 자동저장에서 특정 스프레드 항목 삭제 (#6 제거 등)
+  const deleteWsSpread = (k) => {
+    if (!window.confirm(`#${k} 항목을 자동저장에서 삭제할까요? (페이지별 백업은 남습니다)`)) return;
+    const next = { ...ws.completed };
+    delete next[k];
+    setCompleted(next);
+    setWs({ ...ws, completed: next });
+    setToast && setToast({ kind: "ok", text: `🗑 #${k} 삭제됨` });
+    setTimeout(() => setToast && setToast(null), 3000);
+  };
+
   // 페이지 백업 1건을 해당 스프레드로 복원 → 작업실에 카테고리·명언·본문 표시
   const restorePage = (file, entry) => {
     const idx = fileToSpreadIdx(file);
@@ -99,7 +151,11 @@ function RecoveryPanel({ completed, setCompleted, setToast }) {
               <span className="ubc-cnt">{wsCount}개 스프레드 · {ws && ws.savedAt ? ws.savedAt : "기록 없음"}</span>
               <span className="ubc-spacer"></span>
               {wsCount > 0 && (
-                <button className="btn primary" style={{ fontSize: 11 }} onClick={restoreWorkspace}>전체 복원</button>
+                <>
+                  <button className="btn" style={{ fontSize: 11, marginRight: 6 }} onClick={fixCategories}
+                    title="명언 풀과 대조해 잘못된 카테고리·구절을 자동 정정">🛠 카테고리 자동정정</button>
+                  <button className="btn primary" style={{ fontSize: 11 }} onClick={restoreWorkspace}>전체 복원</button>
+                </>
               )}
             </div>
             {wsCount === 0
@@ -109,11 +165,16 @@ function RecoveryPanel({ completed, setCompleted, setToast }) {
                   {Object.keys(ws.completed).map(k => {
                     const d = ws.completed[k] || {};
                     const first = (d.body || "").split("\n").find(l => l.trim()) || "(본문 없음)";
+                    const hit = findQuoteCat(realQuote(d));
+                    const catNow = hit ? hit.category : (d.category || "—");
+                    const wrong = hit && d.category !== hit.category;
                     return (
                       <li key={k}>
-                        <span className="ubc-pos">#{k}</span>
-                        <span className="ubc-cat">{d.category || "—"}</span>
-                        <span className="ubc-q">{first.slice(0, 40)}{d.comicImg ? " 🖼4컷" : ""}{d.illustImg ? " 🖼상징" : ""}</span>
+                        <span className="ubc-pos">#{k}{d.confirmed ? " ✓" : ""}</span>
+                        <span className="ubc-cat" title={wrong ? `저장값: ${d.category} → 정정: ${hit.category}` : ""}
+                          style={wrong ? { color: "#a83232" } : undefined}>{catNow}{wrong ? " ⚠" : ""}</span>
+                        <span className="ubc-q">{first.slice(0, 38)}{d.comicImg ? " 🖼4컷" : ""}{d.illustImg ? " 🖼상징" : ""}</span>
+                        <button className="ubc-x" onClick={() => deleteWsSpread(k)} title="이 항목 삭제">✕</button>
                       </li>
                     );
                   })}

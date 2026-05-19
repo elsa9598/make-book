@@ -84,9 +84,12 @@ function QuotePicker(props) {
     const c = completed || {};
     Object.keys(c).forEach(idx => {
       const d = c[idx] || {};
-      // 선택 구절(d.quote) 우선, 없으면 본문 첫 줄(자동 타이틀) 폴백
       const firstLine = (d.body || "").split("\n").map(l => l.trim()).find(Boolean) || "";
-      const key = norm(d.quote) || norm(firstLine);
+      // 확정 스프레드 = 실제 인쇄될 본문 첫 줄(진짜 구절) 기준
+      // 미확정 스프레드 = 작업 중 고른 명언(quote) 기준
+      const key = d.confirmed
+        ? (norm(firstLine) || norm(d.quote))
+        : (norm(d.quote) || norm(firstLine));
       if (!key) return;
       const prev = m[key];
       if (!prev || (d.confirmed && !prev.confirmed)) {
