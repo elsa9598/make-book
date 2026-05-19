@@ -627,6 +627,7 @@ function Workshop(props) {
             ledger={ledger}
             bookNo={bookNo}
             currentSpread={currentSpread}
+            completed={completed}
           />
         </div>
 

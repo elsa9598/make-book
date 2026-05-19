@@ -71,27 +71,50 @@ window.QuoteLedger = {
 
 /* ───────── 명언 Picker — 폼박스 아래 100개 리스트 ───────── */
 function QuotePicker(props) {
-  const { topic, category, quote, setQuote, ledger, bookNo, currentSpread } = props;
+  const { topic, category, quote, setQuote, ledger, bookNo, currentSpread, completed } = props;
   const [filter, setFilter] = useStateUT("");
   const [onlyUnused, setOnlyUnused] = useStateUT(false);
 
   const pool = (window.QUOTES && window.QUOTES[topic] && window.QUOTES[topic][category]) || [];
 
+  // 현재 책의 스프레드에 실제 들어간 명언 맵 (확정 여부 포함) — 보이는 것과 일치
+  const usedMap = useMemoUT(() => {
+    const m = {};
+    const c = completed || {};
+    Object.keys(c).forEach(idx => {
+      const d = c[idx] || {};
+      const q = (d.quote || "").trim();
+      if (!q) return;
+      const prev = m[q];
+      // 확정된 게 우선, 없으면 첫 등록 유지
+      if (!prev || (d.confirmed && !prev.confirmed)) {
+        m[q] = { spread: Number(idx), confirmed: !!d.confirmed };
+      }
+    });
+    return m;
+  }, [completed]);
+
   const rows = useMemoUT(() => {
     const f = filter.trim();
     return pool.map((q, i) => {
-      const use = findUse(ledger, topic, q);
-      let state = "free";
-      if (use) state = (use.book === bookNo && use.spread === currentSpread) ? "here" : "used";
-      return { q, i, use, state };
+      const u = usedMap[q.trim()];
+      const ser = !u ? findUse(ledger, topic, q) : null; // 다른 권(시리즈) 사용
+      let state = "free", info = null;
+      if (u) {
+        state = (u.spread === currentSpread) ? "here" : (u.confirmed ? "confirmed" : "used");
+        info = u;
+      } else if (ser) {
+        state = "used"; info = { spread: ser.spread, book: ser.book, series: true };
+      }
+      return { q, i, state, info };
     }).filter(r => {
-      if (onlyUnused && r.state === "used") return false;
+      if (onlyUnused && (r.state === "used" || r.state === "confirmed")) return false;
       if (f && r.q.indexOf(f) === -1) return false;
       return true;
     });
-  }, [pool, filter, onlyUnused, ledger, topic, bookNo, currentSpread]);
+  }, [pool, filter, onlyUnused, usedMap, ledger, topic, currentSpread]);
 
-  const usedInCat = pool.reduce((n, q) => n + (findUse(ledger, topic, q) ? 1 : 0), 0);
+  const usedInCat = pool.reduce((n, q) => n + ((usedMap[q.trim()] || findUse(ledger, topic, q)) ? 1 : 0), 0);
   const usedTopic = topicUsedCount(ledger, topic);
 
   return (
@@ -124,12 +147,20 @@ function QuotePicker(props) {
               key={r.i}
               className={"qp-item state-" + r.state + (selected ? " selected" : "")}
               onClick={() => setQuote(r.q)}
-              title={r.use ? `이미 사용: ${r.use.book}권 본문#${r.use.spread} (${r.use.category})` : "미사용"}
+              title={
+                r.state === "confirmed" ? `✓ 확정된 본문#${String(r.info.spread).padStart(2, "0")}에 사용됨`
+                : r.state === "here" ? "현재 작업 중인 스프레드"
+                : r.state === "used" ? (r.info && r.info.series ? `다른 권(${r.info.book}권)에서 사용` : `본문#${String(r.info.spread).padStart(2, "0")}에 사용(미확정)`)
+                : "미사용"
+              }
             >
               <span className="qp-no">{String(r.i + 1).padStart(3, "0")}</span>
               <span className="qp-text">{r.q}</span>
+              {r.state === "confirmed" && (
+                <span className="qp-badge confirmed">✓ 확정 본문{String(r.info.spread).padStart(2, "0")}</span>
+              )}
               {r.state === "used" && (
-                <span className="qp-badge used">📕 {r.use.book}권·본문{String(r.use.spread).padStart(2, "0")}</span>
+                <span className="qp-badge used">{r.info && r.info.series ? `📕 ${r.info.book}권` : `· 본문${String(r.info.spread).padStart(2, "0")}`}</span>
               )}
               {r.state === "here" && <span className="qp-badge here">● 현재 본문</span>}
             </button>

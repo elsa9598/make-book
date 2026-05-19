@@ -172,3 +172,22 @@
 }
 .ubc-q { flex: 1; color: var(--ink); line-height: 1.35; }
 .ubc-x { flex-shrink: 0; }
+
+/* 확정된 스프레드에 쓰인 명언 — 굵게 줄 긋고 잠금 표시 */
+.qp-item.state-confirmed { opacity: .6; }
+.qp-item.state-confirmed .qp-text {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: #2f5d3a;
+  color: var(--ink-muted);
+}
+.qp-item.state-confirmed .qp-badge.confirmed {
+  background: #2f5d3a; color: #f6ecd6;
+  font-family: var(--font-mono, monospace); font-size: 10px;
+  padding: 1px 6px; border-radius: 2px; white-space: nowrap;
+}
+.qp-item.state-used .qp-badge.used {
+  background: var(--rule-soft, #d8c8a4); color: var(--ink-soft);
+  font-family: var(--font-mono, monospace); font-size: 10px;
+  padding: 1px 6px; border-radius: 2px; white-space: nowrap;
+}

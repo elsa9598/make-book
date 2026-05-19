@@ -398,92 +398,46 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
           </PromptSection>
 
           {!isComic && (
-            <PromptSection title="배경" subtitle="500가지 중 큐레이션 · 복수 선택 · 자유 입력 가능">
-              <OptionChips
-                options={window.BACKGROUNDS}
-                selected={backgrounds}
-                onToggle={toggleArr(backgrounds, setBackgrounds)}
-                columns={3}
-              />
-              <input className="pg-input" placeholder="추가 배경" value={customBg} onChange={e => setCustomBg(e.target.value)} />
+            <PromptSection title="배경" subtitle="직접 입력">
+              <input className="pg-input" placeholder="배경 (예: 비 내리는 도시 골목)" value={customBg} onChange={e => setCustomBg(e.target.value)} />
             </PromptSection>
           )}
 
           {!isComic && (
-            <PromptSection title="시간대" subtitle="복수 선택 가능">
-              <OptionChips
-                options={window.TIMES}
-                selected={times}
-                onToggle={toggleArr(times, setTimes)}
-                columns={4}
-              />
-              <input className="pg-input" placeholder="추가 시간대" value={customTime} onChange={e => setCustomTime(e.target.value)} />
+            <PromptSection title="시간대" subtitle="직접 입력">
+              <input className="pg-input" placeholder="시간대 (예: 황혼 무렵)" value={customTime} onChange={e => setCustomTime(e.target.value)} />
             </PromptSection>
           )}
 
           {!isComic && (
-            <PromptSection title="분위기" subtitle="100가지 중 핵심 · 복수 선택">
-              <OptionChips
-                options={window.MOODS}
-                selected={moods}
-                onToggle={toggleArr(moods, setMoods)}
-                columns={4}
-              />
-              <input className="pg-input" placeholder="추가 분위기" value={customMood} onChange={e => setCustomMood(e.target.value)} />
+            <PromptSection title="분위기" subtitle="직접 입력">
+              <input className="pg-input" placeholder="분위기 (예: 쓸쓸하고 따뜻한)" value={customMood} onChange={e => setCustomMood(e.target.value)} />
             </PromptSection>
           )}
 
           {!isComic && (
-            <PromptSection title="날씨">
-              <OptionChips
-                options={window.WEATHERS}
-                selected={weathers}
-                onToggle={toggleArr(weathers, setWeathers)}
-                columns={4}
-              />
-              <input className="pg-input" placeholder="추가 날씨" value={customWeather} onChange={e => setCustomWeather(e.target.value)} />
+            <PromptSection title="날씨" subtitle="직접 입력">
+              <input className="pg-input" placeholder="날씨 (예: 가랑비)" value={customWeather} onChange={e => setCustomWeather(e.target.value)} />
             </PromptSection>
           )}
 
           {!isComic && (
-            <PromptSection title="조명 · 빛">
-              <OptionChips
-                options={window.LIGHTINGS}
-                selected={lightings}
-                onToggle={toggleArr(lightings, setLightings)}
-                columns={3}
-              />
-              <input className="pg-input" placeholder="추가 조명" value={customLighting} onChange={e => setCustomLighting(e.target.value)} />
+            <PromptSection title="조명 · 빛" subtitle="직접 입력">
+              <input className="pg-input" placeholder="조명 (예: 창으로 드는 부드러운 역광)" value={customLighting} onChange={e => setCustomLighting(e.target.value)} />
             </PromptSection>
           )}
 
           {!isComic && (
-            <PromptSection title="카메라 뷰" subtitle="복수 선택 가능">
-              <OptionChips
-                options={window.CAMERA_VIEWS}
-                selected={cameras}
-                onToggle={toggleArr(cameras, setCameras)}
-                columns={3}
-              />
-              <input className="pg-input" placeholder="추가 카메라" value={customCamera} onChange={e => setCustomCamera(e.target.value)} />
+            <PromptSection title="카메라 뷰" subtitle="직접 입력">
+              <input className="pg-input" placeholder="카메라 뷰 (예: 로우앵글 클로즈업)" value={customCamera} onChange={e => setCustomCamera(e.target.value)} />
             </PromptSection>
           )}
 
           {!isComic && (
-            <PromptSection title="포커싱 · 아웃포커싱">
-              <div className="focus-grid">
-                {window.FOCUS_PRESETS.map((f, i) => (
-                  <button
-                    key={i}
-                    className={"opt-chip focus-chip" + (focusPreset === f.value ? " active" : "")}
-                    onClick={() => setFocusPreset(focusPreset === f.value ? "" : f.value)}
-                    title={f.value}
-                  >{f.label}</button>
-                ))}
-              </div>
+            <PromptSection title="포커싱 · 아웃포커싱" subtitle="직접 입력">
               <div className="focus-inputs">
-                <input className="pg-input" placeholder="포커스 대상 (예: 인물의 눈)" value={focusSubject} onChange={e => setFocusSubject(e.target.value)} />
-                <input className="pg-input" placeholder="아웃포커싱 대상 (예: 배경 나무)" value={outFocus} onChange={e => setOutFocus(e.target.value)} />
+                <input className="pg-input" placeholder="포커싱 (예: 인물의 눈)" value={focusSubject} onChange={e => setFocusSubject(e.target.value)} />
+                <input className="pg-input" placeholder="아웃포커싱 (예: 배경 나무)" value={outFocus} onChange={e => setOutFocus(e.target.value)} />
               </div>
             </PromptSection>
           )}
