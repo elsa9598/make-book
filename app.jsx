@@ -239,6 +239,19 @@ function App() {
     });
   }, [versions]);
 
+  // 선택한 명언(구절)을 현재 스프레드의 quote로 즉시 반영 (확정 잠금 아닐 때)
+  // → 명언 목록의 줄긋기·확정표시가 '그 스프레드에 고른 구절'과 정확히 일치
+  useEffect(() => {
+    const cur = completed[currentSpread];
+    if (!cur || cur.confirmed) return;            // 미작업/확정 스프레드는 건드리지 않음
+    if ((cur.quote || "") === quote) return;
+    setCompleted(prev => {
+      const c = prev[currentSpread];
+      if (!c || c.confirmed) return prev;
+      return { ...prev, [currentSpread]: { ...c, quote } };
+    });
+  }, [quote]);
+
   // MAKE 가능 조건: 본문 + 이미지 2장 첨부 (폴더 선택은 참고용)
   const canMake = sp.leftMeta.section === "body"
     && body.trim().length > 0
