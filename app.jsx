@@ -83,7 +83,16 @@ function App() {
     let alive = true;
     (async () => {
       if (!window.ArtbookStore) { hydrated.current = true; return; }
-      const snap = await window.ArtbookStore.get("workspace");
+      // 권별 workspace 키 (workspace_1권, workspace_2권, …)
+      let snap = await window.ArtbookStore.get(`workspace_${bookNo}권`);
+      // 마이그레이션: 권별 키 없고 1권이면 기존 단일 workspace 키에서 복사
+      if (!snap && bookNo === 1) {
+        const legacy = await window.ArtbookStore.get("workspace");
+        if (legacy && typeof legacy === "object") {
+          snap = legacy;
+          await window.ArtbookStore.set("workspace_1권", legacy);
+        }
+      }
       if (alive && snap && typeof snap === "object") {
         if (snap.completed) setCompleted(snap.completed);
         if (snap.coverImg) setCoverImg(snap.coverImg);
@@ -103,7 +112,7 @@ function App() {
       const now = new Date();
       const ts = now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
       const snap = { completed, coverImg, backImg, oduniImg, savedAt: ts };
-      const ok = await window.ArtbookStore.set("workspace", snap);
+      const ok = await window.ArtbookStore.set(`workspace_${bookNo}권`, snap);
       if (ok) setSavedAt(ts);
 
       // 페이지별 백업 누적 — 명세 파일명 규칙: NNN_a(왼쪽) / NNN_b(오른쪽)
@@ -139,7 +148,62 @@ function App() {
         await window.ArtbookStore.set("page_backups", backups);
       } catch (e) { /* 백업 실패는 본 저장에 영향 주지 않음 */ }
     }, 700);
-  }, [completed, coverImg, backImg, oduniImg]);
+  }, [completed, coverImg, backImg, oduniImg, bookNo]);
+
+  // 권 전환 — 이전 권 즉시 저장 + 새 권 로드 (작업물 자동 보존·복원)
+  const onChangeBookNo = async (newBookNo) => {
+    if (newBookNo === bookNo) return;
+    const prev = bookNo;
+
+    try {
+      if (window.ArtbookStore) {
+        // 1) 이전 권 데이터 즉시 저장 (디바운스 무시)
+        clearTimeout(saveTimer.current);
+        const now = new Date();
+        const ts = now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+        await window.ArtbookStore.set(`workspace_${prev}권`, {
+          completed, coverImg, backImg, oduniImg, savedAt: ts
+        });
+
+        // 2) 새 권 데이터 로드
+        const next = await window.ArtbookStore.get(`workspace_${newBookNo}권`);
+        if (next && typeof next === "object") {
+          setCompleted(next.completed || {});
+          setCoverImg(next.coverImg || null);
+          setBackImg(next.backImg || null);
+          setOduniImg(next.oduniImg || null);
+          setSavedAt(next.savedAt || null);
+        } else {
+          // 새 권 — 빈 상태로 리셋
+          setCompleted({});
+          setCoverImg(null);
+          setBackImg(null);
+          setOduniImg(null);
+          setSavedAt(null);
+        }
+      }
+    } catch (e) {
+      console.warn("[bookNo-switch] 저장/로드 실패:", e.message);
+    }
+
+    // 3) 작업실 상태 리셋
+    setCurrentSpread(1);
+    setPreviewSpread(0);
+    setBody("");
+    setVersions([]);
+    setActiveVer(null);
+    setPickedComic(null);
+    setPickedIllust(null);
+    setComicImg(null);
+    setIllustImg(null);
+    setRetryLog([]);
+
+    // 4) 권 번호 갱신 — localStorage에도 저장됨 (useEffect)
+    setBookNo(newBookNo);
+
+    setToast({ kind: "ok", text: `📘 ${newBookNo}권으로 전환됨 — 작업물 자동 복원/리셋` });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Tweaks
   const [tweakValues, setTweak] = window.useTweaks(TWEAK_DEFAULTS);
@@ -434,7 +498,7 @@ function App() {
         <div className="header-meta">
           <label className="book-select">
             시리즈
-            <select value={bookNo} onChange={e => setBookNo(parseInt(e.target.value, 10))}>
+            <select value={bookNo} onChange={e => onChangeBookNo(parseInt(e.target.value, 10))}>
               {Array.from({ length: window.QuoteLedger.SERIES_BOOKS }, (_, i) => i + 1).map(b => (
                 <option key={b} value={b}>{b}권</option>
               ))}
