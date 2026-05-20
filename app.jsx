@@ -13,7 +13,7 @@ function App() {
   const [category, setCategory] = useStateApp("지혜");
   const [quote, setQuote] = useStateApp("한 사람을 구하는 것은 온 세계를 구하는 것이다.");
 
-  // 작업 중인 스프레드 인덱스 (본문 = 4~27 = 24편)
+  // 작업 중인 스프레드 인덱스 (본문 = 1~5 = 5편)
   const [currentSpread, setCurrentSpread] = useStateApp(1); // 첫 본문 스프레드 (001_a/002_b)
   const [previewSpread, setPreviewSpread] = useStateApp(0);
   const [tab, setTab] = useStateApp("workshop"); // workshop / book / preview
@@ -45,6 +45,7 @@ function App() {
   const [retryLog, setRetryLog] = useStateApp([]);
   const [busy, setBusy] = useStateApp(false);
   const [versions, setVersions] = useStateApp([]);
+  const [activeVer, setActiveVer] = useStateApp(null); // 선택된 버전 인덱스 — 프롬프트 페이지 왕복에도 유지
 
   // 폴더에서 선택된 파일명 (페이지 번호 매칭 검증용)
   const [pickedComic, setPickedComic] = useStateApp(null);
@@ -61,10 +62,13 @@ function App() {
   const [coverImg, setCoverImg] = useStateApp(null);
   const [backImg, setBackImg] = useStateApp(null);
 
+  // A4 인쇄용 PDF의 3번 스프레드에 들어갈 오둥이 사진 (권별 첨부)
+  const [oduniImg, setOduniImg] = useStateApp(null);
+
   // Toast
   const [toast, setToast] = useStateApp(null);
 
-  // 시리즈 명언 사용 대장 + 작업 권 (1~30)
+  // 시리즈 명언 사용 대장 + 작업 권 (1~200)
   const [ledger, setLedger] = useStateApp(() => window.QuoteLedger.load());
   const [bookNo, setBookNo] = useStateApp(() => window.QuoteLedger.bookNoLoad());
   useEffect(() => { window.QuoteLedger.save(ledger); }, [ledger]);
@@ -84,6 +88,7 @@ function App() {
         if (snap.completed) setCompleted(snap.completed);
         if (snap.coverImg) setCoverImg(snap.coverImg);
         if (snap.backImg) setBackImg(snap.backImg);
+        if (snap.oduniImg) setOduniImg(snap.oduniImg);
         if (snap.savedAt) setSavedAt(snap.savedAt);
       }
       hydrated.current = true;
@@ -97,7 +102,7 @@ function App() {
     saveTimer.current = setTimeout(async () => {
       const now = new Date();
       const ts = now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
-      const snap = { completed, coverImg, backImg, savedAt: ts };
+      const snap = { completed, coverImg, backImg, oduniImg, savedAt: ts };
       const ok = await window.ArtbookStore.set("workspace", snap);
       if (ok) setSavedAt(ts);
 
@@ -134,7 +139,7 @@ function App() {
         await window.ArtbookStore.set("page_backups", backups);
       } catch (e) { /* 백업 실패는 본 저장에 영향 주지 않음 */ }
     }, 700);
-  }, [completed, coverImg, backImg]);
+  }, [completed, coverImg, backImg, oduniImg]);
 
   // Tweaks
   const [tweakValues, setTweak] = window.useTweaks(TWEAK_DEFAULTS);
@@ -153,7 +158,7 @@ function App() {
     if (tab !== "preview") return;
     const onKey = (e) => {
       if (e.key === "ArrowLeft") setPreviewSpread(i => Math.max(0, i - 1));
-      if (e.key === "ArrowRight") setPreviewSpread(i => Math.min(15, i + 1));
+      if (e.key === "ArrowRight") setPreviewSpread(i => Math.min(5, i + 1));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -173,6 +178,7 @@ function App() {
       if (saved.quote != null) setQuote(saved.quote);
       if (saved.book) setBookNo(saved.book);
       setVersions(Array.isArray(saved.versions) ? saved.versions : []); // 생성 이력 복원
+      setActiveVer(typeof saved.activeVerIdx === "number" ? saved.activeVerIdx : null); // 선택 버전 복원
     } else {
       // 새 스프레드 — 완전 리셋: 카테고리부터 스토리·프롬프트 새로 시작
       setBody("");
@@ -184,6 +190,7 @@ function App() {
       if (T0 && T0.categories && T0.categories.length) setCategory(T0.categories[0]);
       setQuote("");
       setVersions([]);
+      setActiveVer(null);
     }
     setRetryLog([]);
   }, [currentSpread]);
@@ -238,6 +245,18 @@ function App() {
       return { ...prev, [currentSpread]: { ...cur, versions, topic, category, quote } };
     });
   }, [versions]);
+
+  // 선택된 버전 인덱스(activeVer)도 영구 저장 — 프롬프트 페이지 왕복 후에도 어떤 버전을 골랐는지 표시 유지
+  useEffect(() => {
+    if (completed[currentSpread] && completed[currentSpread].confirmed) return;
+    setCompleted(prev => {
+      const cur = prev[currentSpread] || {};
+      // 빈 스프레드(versions 없음)에 null 저장하면서 빈 entry 만들지 않게
+      if (!cur.versions && activeVer == null) return prev;
+      if (cur.activeVerIdx === activeVer) return prev;
+      return { ...prev, [currentSpread]: { ...cur, activeVerIdx: activeVer } };
+    });
+  }, [activeVer]);
 
   // 선택한 명언(구절)을 현재 스프레드의 quote로 즉시 반영 (확정 잠금 아닐 때)
   // → 명언 목록의 줄긋기·확정표시가 '그 스프레드에 고른 구절'과 정확히 일치
@@ -396,7 +415,7 @@ function App() {
 
   // 다음 스프레드로 이동 (useEffect가 상태 복원/초기화 담당)
   const goNextBody = () => {
-    setCurrentSpread(Math.min(15, currentSpread + 1));
+    setCurrentSpread(Math.min(5, currentSpread + 1));
   };
 
   return (
@@ -422,7 +441,7 @@ function App() {
             </select>
             / {window.QuoteLedger.SERIES_BOOKS}권
           </label>
-          <span>완성 {Object.keys(completed).length}/15</span>
+          <span>완성 {Object.keys(completed).filter(k => parseInt(k) >= 1 && parseInt(k) <= 5).length}/5</span>
           <span>대장 {window.QuoteLedger.topicUsedCount(ledger, topic)}/{window.QuoteLedger.TARGET_PER_TOPIC}</span>
           <span title="새로고침·재부팅에도 보존 (IndexedDB, 백업본 5개 유지)">
             {savedAt ? `자동저장 ${savedAt}` : "자동저장 대기"}
@@ -452,6 +471,7 @@ function App() {
           retryLog={retryLog} setRetryLog={setRetryLog}
           busy={busy} setBusy={setBusy}
           versions={versions} setVersions={setVersions}
+          activeVer={activeVer} setActiveVer={setActiveVer}
           onSaveToBook={saveBodyToBook}
           spreadLocked={spreadLocked} onUnlockSpread={onUnlockSpread}
           pickedComic={pickedComic} setPickedComic={setPickedComic}
@@ -487,8 +507,10 @@ function App() {
           completed={completed} setCompleted={setCompleted}
           topic={topic}
           coverImg={coverImg} backImg={backImg}
+          oduniImg={oduniImg} setOduniImg={setOduniImg}
           comicSide={tweakValues.comicSide}
           currentIdx={previewSpread} setCurrentIdx={setPreviewSpread}
+          bookNo={bookNo}
         />
       )}
 
@@ -574,7 +596,7 @@ function Workshop(props) {
     topic, setTopic, category, setCategory, quote, setQuote,
     currentSpread, setCurrentSpread,
     body, setBody, retryLog, setRetryLog, busy, setBusy,
-    versions, setVersions, onSaveToBook,
+    versions, setVersions, activeVer, setActiveVer, onSaveToBook,
     spreadLocked, onUnlockSpread,
     pickedComic, setPickedComic, pickedIllust, setPickedIllust,
     comicImg, setComicImg, illustImg, setIllustImg,
@@ -661,6 +683,7 @@ function Workshop(props) {
             retryLog={retryLog} setRetryLog={setRetryLog}
             busy={busy} setBusy={setBusy}
             versions={versions} setVersions={setVersions}
+            activeVer={activeVer} setActiveVer={setActiveVer}
             onSaveToBook={onSaveToBook}
             locked={spreadLocked}
           />
@@ -711,7 +734,7 @@ function Workshop(props) {
               {sp.leftMeta.label} · {sp.rightMeta.label}
             </div>
             <div style={{fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-muted)", marginTop: 2}}>
-              {leftFile} · {rightFile} · pp.{String(sp.leftPage).padStart(3,"0")}–{String(sp.rightPage).padStart(3,"0")} · 스프레드 {currentSpread + 1}/16
+              {leftFile} · {rightFile} · pp.{String(sp.leftPage).padStart(3,"0")}–{String(sp.rightPage).padStart(3,"0")} · 스프레드 {currentSpread + 1}/6
             </div>
           </div>
           <div style={{display: "flex", gap: 6}}>
@@ -722,7 +745,7 @@ function Workshop(props) {
             >‹ 이전</button>
             <button
               className="btn ghost"
-              disabled={currentSpread >= 15}
+              disabled={currentSpread >= 5}
               onClick={goNextBody}
             >다음 ›</button>
           </div>

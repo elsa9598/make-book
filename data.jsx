@@ -68,14 +68,14 @@ function buildMockFiles() {
 
 const MOCK_FILES = buildMockFiles();
 
-/* 책 구조 — 노출 제본 빈 템플릿 아트북 (사용자 정의)
-   · 스프레드 0     : 표지 스프레드 (겉표지 + 뒷표지)
-   · 스프레드 1~24  : 본문 24편 (각 스프레드 = 2페이지 = 카드 2장)
-   · 페이지 번호     : 본문만 001~048, 좌측=홀수(_a), 우측=짝수(_b)
-   · 프롤로그/챕터/에필로그 없음. 총 25 스프레드, 카드 48장.
+/* 책 구조 — 노출 제본 빈 템플릿 아트북 (2026-05-20 재조정)
+   · 스프레드 0    : 표지 스프레드 (겉표지 + 뒷표지)
+   · 스프레드 1~5  : 본문 5편 (각 스프레드 = 2페이지 = 카드 2장)
+   · 페이지 번호    : 본문만 001~010, 좌측=홀수(_a), 우측=짝수(_b)
+   · 프롤로그/챕터/에필로그 없음. 총 6 스프레드, 카드 10장.
 */
 function getPageMeta(p) {
-  if (p >= 1 && p <= 48) {
+  if (p >= 1 && p <= 10) {
     const workIdx = Math.floor((p - 1) / 2) + 1;
     return { section: "body", label: `본문 #${String(workIdx).padStart(2, "0")}`, workIdx };
   }
@@ -92,10 +92,10 @@ function buildSpreads() {
     leftMeta: { section: "cover", label: "겉표지" },
     rightMeta: { section: "back", label: "뒷표지" }
   });
-  // 스프레드 1~24 — 본문
-  for (let i = 1; i <= 15; i++) {
-    const left = (i - 1) * 2 + 1;   // 1,3,5 … 47  (_a 왼쪽)
-    const right = (i - 1) * 2 + 2;  // 2,4,6 … 48  (_b 오른쪽)
+  // 스프레드 1~5 — 본문
+  for (let i = 1; i <= 5; i++) {
+    const left = (i - 1) * 2 + 1;   // 1,3,5,7,9  (_a 왼쪽)
+    const right = (i - 1) * 2 + 2;  // 2,4,6,8,10 (_b 오른쪽)
     spreads.push({
       index: i,
       leftPage: left,

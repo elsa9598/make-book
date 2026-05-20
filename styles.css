@@ -1168,6 +1168,93 @@ body {
 /* ────────── 인쇄 전용 컨테이너 ────────── */
 .print-only { display: none; }
 
+/* ─── A4 인쇄용 임포지션 (8 A4 가로, 좌 940 + 펀칭 100 + 우 940 = 1980px / 높이 1400px) ─── */
+.print-impose-only { display: none; }
+.print-impose-only .a4-page {
+  display: flex !important;
+  flex-direction: row !important;
+  width: 1980px !important;
+  height: 1400px !important;
+  background: #ffffff;
+  page-break-after: always;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.print-impose-only .a4-side {
+  height: 100% !important;
+  background: #ffffff;
+  box-sizing: border-box;
+  flex-shrink: 0 !important;
+  position: relative;
+}
+.print-impose-only .a4-side.a4-left,
+.print-impose-only .a4-side.a4-right {
+  width: 940px !important;
+}
+.print-impose-only .a4-punch {
+  width: 100px !important;
+  height: 100% !important;
+  background: #ffffff;
+  flex-shrink: 0 !important;
+  border: none !important;
+  position: relative;
+  box-sizing: border-box;
+}
+/* 중심 재단선 — 옅은 회색 점선 1줄 (펀칭 영역 가운데) */
+.print-impose-only .a4-punch::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed rgba(0,0,0,0.22);
+  transform: translateX(-50%);
+}
+/* A4 본문 페이지의 카드는 영역 940px × 940px 정사각으로 가득 (.card-slot 기본 CSS 덮어쓰기) */
+/* 크래프트지에 인쇄하므로 배경은 화이트로 강제 (기본 종이톤 paper-warm 적용 안 함) */
+.print-impose-only .a4-side.a4-body .card-slot {
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 940px !important;
+  height: 940px !important;
+  aspect-ratio: auto !important;
+  display: block !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  background: #ffffff !important;
+}
+/* 카드 내부의 종이톤 배경(card-inner, card-split, cs-left, cs-right 등)도 모두 화이트로 강제 */
+.print-impose-only .a4-side.a4-body .card-slot .card-inner,
+.print-impose-only .a4-side.a4-body .card-slot .card-cat,
+.print-impose-only .a4-side.a4-body .card-slot .card-split,
+.print-impose-only .a4-side.a4-body .card-slot .cs-left,
+.print-impose-only .a4-side.a4-body .card-slot .cs-right,
+.print-impose-only .a4-side.a4-body .card-slot .card-body {
+  background: #ffffff !important;
+}
+/* A4 본문 페이지 컨테이너 — 상단 940 정사각 + 하단 460 필기 여백 */
+.print-impose-only .a4-side.a4-body {
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+}
+/* A4 _b 페이지 (우측) 일러스트 이미지 — 940×940 정사각 가득 */
+.print-impose-only .a4-side.a4-body > div:first-child {
+  width: 940px !important;
+  height: 940px !important;
+  flex-shrink: 0 !important;
+}
+.print-impose-only .a4-side.a4-body > div:first-child > img {
+  width: 940px !important;
+  height: 940px !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
 @media print {
   @page {
     size: 297mm 148.5mm;  /* 2:1 책 펼침면 */

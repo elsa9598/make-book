@@ -128,12 +128,12 @@ function BookGrid({ spreads, completed, onPickSpread, topic, coverImg, backImg, 
       />
       <div style={{gridColumn: "span 4", display: "flex", alignItems: "center", padding: "12px 16px"}}>
         <div className="hint">
-          노출 제본 빈 템플릿 — 표지 1 스프레드 + 본문 15 스프레드(카드 30장). 책등은 실 노출 제본.
+          노출 제본 빈 템플릿 — 표지 1 스프레드 + 본문 5 스프레드(카드 10장). 책등은 실 노출 제본.
         </div>
       </div>
 
-      {/* 본문 — 24편 (001_a ~ 048_b) */}
-      <SectionHeader title="본문" subtitle="body · 15 spreads · 001_a–030_b" />
+      {/* 본문 — 5편 (001_a ~ 010_b) */}
+      <SectionHeader title="본문" subtitle="body · 5 spreads · 001_a–010_b" />
       {spreads.slice(1).map(sp => (
         <SpreadCell key={sp.index} sp={sp} done={completed[sp.index]} onPick={() => onPickSpread(sp.index)} />
       ))}
@@ -234,7 +234,7 @@ function CoverAttach({ side, img, onUpload, topicName, topicSub }) {
 }
 
 /* ───────── 미리보기 — 펼침면 넘기기 ───────── */
-function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backImg, comicSide, currentIdx, setCurrentIdx }) {
+function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backImg, comicSide, currentIdx, setCurrentIdx, bookNo, oduniImg, setOduniImg }) {
   const T = window.TOPICS[topic];
   const total = spreads.length;
   const sp = spreads[currentIdx];
@@ -286,7 +286,7 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
   };
 
   // 미리보기 → 로컬 PDF 파일로 저장 (전 스프레드, 클라이언트 전용)
-  const exportPDF = async (lang = "ko") => {
+  const exportPDF = async (lang = "ko", opts = {}) => {
     const jspdfNS = window.jspdf || window.jsPDF;
     const JsPDF = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
     if (!window.html2canvas || !JsPDF) {
@@ -335,9 +335,9 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
       const d = new Date();
       const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0")
         + "_" + String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
-      const fname = EN
+      const fname = opts.filename || (EN
         ? ("artbook_" + (T ? T.name : "book") + "_" + stamp + "_EN.pdf")
-        : ("아트북_" + (T ? T.nameKo : "book") + "_" + stamp + ".pdf");
+        : ("아트북_" + (T ? T.nameKo : "book") + "_" + stamp + ".pdf"));
 
       // 서버로 열렸으면 make_book/pdf 폴더에 저장, 아니면 브라우저 다운로드 폴백
       let savedToFolder = false;
@@ -347,18 +347,19 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
           const r = await fetch(location.origin + "/save-pdf", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ filename: fname, data: b64, sub: EN ? "en" : "" })
+            body: JSON.stringify({ filename: fname, data: b64, sub: opts.sub != null ? opts.sub : (EN ? "en" : "") })
           });
           const j = await r.json();
           if (j && j.ok) {
             savedToFolder = true;
-            alert("PDF 저장 완료\n" + j.path + "\n(" + Math.round(j.bytes / 1024) + " KB)");
+            if (!opts.silent) alert("PDF 저장 완료\n" + j.path + "\n(" + Math.round(j.bytes / 1024) + " KB)");
           }
         } catch (e) {
           console.warn("[pdf] 폴더 저장 실패 → 다운로드로 전환:", e.message);
         }
       }
-      if (!savedToFolder) doc.save(fname);
+      if (!savedToFolder && !opts.silent) doc.save(fname);
+      if (opts.returnPath) return savedToFolder ? fname : null;
     } catch (e) {
       console.error("[pdf] 생성 실패:", e);
       alert("PDF 생성 중 오류가 발생했습니다. 콘솔을 확인하세요.");
@@ -370,8 +371,9 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
     }
   };
 
-  // 인쇄소용 — 페이지마다 10cm 정사각 카드 1장 (001_a~048_b, 48장) → pdf/card_pdf/
-  const exportCardPDF = async (lang = "ko") => {
+  // 인쇄소용 — 페이지마다 10cm 정사각 카드 1장 (001_a~010_b, 10장)
+  // 좌→우→좌→우 인터리브 순서 (자연스러운 책 페이지 순서). KR → pdf/card_pdf/, EN → pdf/card_pdf_en/
+  const exportCardPDF = async (lang = "ko", opts = {}) => {
     const jspdfNS = window.jspdf || window.jsPDF;
     const JsPDF = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
     if (!window.html2canvas || !JsPDF) { alert("PDF 라이브러리를 불러오지 못했습니다."); return; }
@@ -402,8 +404,19 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
       if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
       await new Promise(r => setTimeout(r, 120));
 
-      // 본문 스프레드의 카드만 DOM 순서대로 = 001_a, 002_b, 003_a … 048_b
-      const cards = Array.from(po.querySelectorAll(".print-spread .card-slot"));
+      // 본문 스프레드(표지 제외)의 카드를 좌→우→좌→우 인터리브 순서로 (책 페이지 자연 순서)
+      // 001_a, 002_b, 003_a, 004_b, … 010_b
+      const bodySpreadEls = spreadsEls.filter((_, idx) => idx >= 1);
+      const cards = [];
+      bodySpreadEls.forEach(spEl => {
+        const leftPage = spEl.querySelector(".spread-page.left");
+        const rightPage = spEl.querySelector(".spread-page.right");
+        const leftCard = leftPage ? leftPage.querySelector(".card-slot") : null;
+        const rightCard = rightPage ? rightPage.querySelector(".card-slot") : null;
+        if (leftCard) cards.push(leftCard);
+        if (rightCard) cards.push(rightCard);
+      });
+      console.log("[card-pdf] 좌·우 인터리브 — 총 " + cards.length + "장");
       if (cards.length === 0) { alert("카드가 없습니다. 본문을 먼저 만들어 주세요."); return; }
 
       const S = 1000; // 10cm @ 100dpi 상당 (정사각)
@@ -419,9 +432,9 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
       const d = new Date();
       const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0")
         + "_" + String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
-      const fname = EN
-        ? ("artbook_" + (T ? T.name : "book") + "_cards48_" + stamp + "_EN.pdf")
-        : ("아트북_" + (T ? T.nameKo : "book") + "_카드48_" + stamp + ".pdf");
+      const fname = opts.filename || (EN
+        ? ("artbook_" + (T ? T.name : "book") + "_cards10_" + stamp + "_EN.pdf")
+        : ("아트북_" + (T ? T.nameKo : "book") + "_카드10_" + stamp + ".pdf"));
 
       let saved2 = false;
       if (location.protocol === "http:" || location.protocol === "https:") {
@@ -429,13 +442,14 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
           const b64 = doc.output("datauristring").split(",")[1];
           const r = await fetch(location.origin + "/save-pdf", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ filename: fname, data: b64, sub: EN ? "card_pdf_en" : "card_pdf" })
+            body: JSON.stringify({ filename: fname, data: b64, sub: opts.sub || (EN ? "card_pdf_en" : "card_pdf") })
           });
           const j = await r.json();
-          if (j && j.ok) { saved2 = true; alert("카드 PDF 저장 완료 (" + cards.length + "장)\n" + j.path); }
+          if (j && j.ok) { saved2 = true; if (!opts.silent) alert("카드 PDF 저장 완료 (" + cards.length + "장)\n" + j.path); }
         } catch (e) { console.warn("[card-pdf] 폴더 저장 실패 → 다운로드:", e.message); }
       }
-      if (!saved2) doc.save(fname);
+      if (!saved2 && !opts.silent) doc.save(fname);
+      if (opts.returnPath) return saved2 ? fname : null;
     } catch (e) {
       console.error("[card-pdf] 생성 실패:", e);
       alert("카드 PDF 생성 중 오류가 발생했습니다. 콘솔을 확인하세요.");
@@ -446,6 +460,189 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
       setBusyKind("");
     }
   };
+
+  // 1권 최종 확정 — 본문 5스프레드가 모두 확정됐는지 검사 후 4 PDF (KR PDF · KR 카드 · EN PDF · EN 카드)를 pdf_4ea/ 폴더에 일괄 저장
+  const finalizeBook = async () => {
+    if (busyKind) return;
+    // 본문 스프레드 1~5가 모두 confirmed 인지 검사
+    const missing = [];
+    for (let i = 1; i <= 5; i++) {
+      const d = completed[i];
+      if (!d || !d.confirmed) missing.push(i);
+    }
+    if (missing.length > 0) {
+      alert("아직 확정되지 않은 본문 스프레드가 있습니다: " + missing.map(n => "#" + String(n).padStart(2, "0")).join(", ") + "\n각 스프레드를 확정한 뒤 다시 시도해주세요.");
+      return;
+    }
+    const bk = String(bookNo || 1).padStart(3, "0");
+    const tname = T ? T.name : "book";
+    const tnameKo = T ? T.nameKo : "book";
+    if (!confirm(`📘 ${bookNo}권 최종 확정\n\n4개의 PDF를 make_book/pdf_4ea/ 폴더에 저장합니다.\n  · 한글 PDF\n  · 한글 카드 PDF (좌→우 인터리브 10장)\n  · 영어 PDF\n  · 영어 카드 PDF (좌→우 인터리브 10장)\n\n계속하시겠습니까?`)) return;
+
+    try {
+      setBusyKind("finalize");
+      // 1) KR PDF
+      await exportPDF("ko", {
+        sub: "pdf_4ea",
+        filename: `v${bk}_${tnameKo}_한글본문.pdf`,
+        silent: true
+      });
+      // 2) KR 카드 PDF (좌 5장 → 우 5장)
+      await exportCardPDF("ko", {
+        sub: "pdf_4ea",
+        filename: `v${bk}_${tnameKo}_한글카드.pdf`,
+        silent: true
+      });
+      // 3) EN PDF
+      await exportPDF("en", {
+        sub: "pdf_4ea",
+        filename: `v${bk}_${tname}_EN_body.pdf`,
+        silent: true
+      });
+      // 4) EN 카드 PDF
+      await exportCardPDF("en", {
+        sub: "pdf_4ea",
+        filename: `v${bk}_${tname}_EN_cards.pdf`,
+        silent: true
+      });
+      alert(`✅ ${bookNo}권 최종 확정 완료\n\n4개의 PDF가 make_book/pdf_4ea/ 폴더에 저장되었습니다.\n  · v${bk}_${tnameKo}_한글본문.pdf\n  · v${bk}_${tnameKo}_한글카드.pdf\n  · v${bk}_${tname}_EN_body.pdf\n  · v${bk}_${tname}_EN_cards.pdf`);
+    } catch (e) {
+      console.error("[finalize] 실패:", e);
+      alert("최종 확정 중 오류 발생: " + e.message);
+    } finally {
+      setBusyKind("");
+    }
+  };
+
+  // A4 인쇄용 임포지션 매핑 — 총 8 A4 스프레드
+  // 각 항목: { left: 페이지번호|특수키, right: 페이지번호|특수키 }
+  // 특수키: "front-inner"(앞내지), "back-inner"(뒷내지), "oduni-photo"(오둥이 사진), null(공백)
+  const A4_LAYOUT = [
+    { left: null, right: "front-inner" },  // 1
+    { left: null, right: "back-inner" },   // 2
+    { left: "oduni-photo", right: "theme-mark" },  // 3
+    { left: 1, right: 10 },                // 4: 001_a | 010_b
+    { left: 9, right: 2 },                 // 5: 009_a | 002_b
+    { left: 3, right: 8 },                 // 6: 003_a | 008_b
+    { left: 7, right: 4 },                 // 7: 007_a | 004_b
+    { left: 5, right: 6 },                 // 8: 005_a | 006_b
+  ];
+
+  // A4 인쇄용 PDF — 권별 폴더(pdf_인쇄용/{N}권/)에 임포지션 PDF 저장
+  // 본문 페이지: A4 가로 297×210, 중앙 1.5cm 펀칭 여백, 좌·우 141mm 영역에 1:1 정사각 이미지 (141×141mm) 상단 고정
+  const exportPrintPDF = async () => {
+    if (busyKind) return;
+    // 본문 5스프레드 모두 confirmed 인지 검사
+    const missing = [];
+    for (let i = 1; i <= 5; i++) {
+      const d = completed[i];
+      if (!d || !d.confirmed) missing.push(i);
+    }
+    if (missing.length > 0) {
+      alert("아직 확정되지 않은 본문 스프레드가 있습니다: " + missing.map(n => "#" + String(n).padStart(2, "0")).join(", ") + "\n각 스프레드를 확정한 뒤 다시 시도해주세요.");
+      return;
+    }
+    const jspdfNS = window.jspdf || window.jsPDF;
+    const JsPDF = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
+    if (!window.html2canvas || !JsPDF) { alert("PDF 라이브러리를 불러오지 못했습니다."); return; }
+    if (!confirm(`🖨 ${bookNo}권 A4 인쇄용 PDF\n\n8장의 A4 가로 임포지션 PDF 2개(한글본·영문본)를\nmake_book/pdf_인쇄용/${bookNo}권/ 폴더에 저장합니다.\n\n  · 1번: 앞내지 (테마 + 카테고리 목차)\n  · 2번: 뒷내지 (명언·구절)\n  · 3번: 오둥이 사진 + 테마 마크\n  · 4~8번: 본문 임포지션 (001_a~010_b)\n\n영문본은 로컬 Ollama 번역(qwen2.5:14b)을 사용합니다. 시간이 좀 걸릴 수 있습니다.\n\n계속하시겠습니까?`)) return;
+
+    setBusyKind("print");
+    const po = document.querySelector(".print-impose-only");
+    if (!po) { alert("임포지션 레이아웃 DOM이 없습니다."); setBusyKind(""); return; }
+    const prevStyle = po.getAttribute("style") || "";
+    // A4 가로 297×210mm → 1980×1400 픽셀 (비율 동일, 1mm ≈ 6.66px)
+    const W = 1980, H = 1400;
+    po.setAttribute("style", "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:#ffffff;z-index:-1;");
+    const pages = Array.from(po.querySelectorAll(".a4-page"));
+    const prevPageStyles = pages.map(el => el.getAttribute("style") || "");
+    pages.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;"));
+
+    // 8장 캡처해서 한 PDF로 만드는 헬퍼
+    const capturePagesToPdf = async () => {
+      if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
+      await new Promise(r => setTimeout(r, 250));
+      const doc = new JsPDF({ orientation: "landscape", unit: "px", format: [W, H] });
+      for (let i = 0; i < pages.length; i++) {
+        const canvas = await window.html2canvas(pages[i], {
+          scale: 2, useCORS: true, backgroundColor: "#ffffff",
+          width: W, height: H, windowWidth: W, windowHeight: H
+        });
+        const img = canvas.toDataURL("image/jpeg", 0.92);
+        if (i > 0) doc.addPage([W, H], "landscape");
+        doc.addImage(img, "JPEG", 0, 0, W, H);
+      }
+      return doc;
+    };
+
+    // 서버 또는 다운로드로 저장
+    const savePdf = async (doc, fname) => {
+      let saved = false;
+      if (location.protocol === "http:" || location.protocol === "https:") {
+        try {
+          const b64 = doc.output("datauristring").split(",")[1];
+          const r = await fetch(location.origin + "/save-pdf", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: fname, data: b64, printVol: bookNo })
+          });
+          const j = await r.json();
+          if (j && j.ok) { saved = true; return { ok: true, path: j.path, bytes: j.bytes }; }
+        } catch (e) { console.warn("[print-pdf] 폴더 저장 실패 → 다운로드:", e.message); }
+      }
+      if (!saved) doc.save(fname);
+      return { ok: false };
+    };
+
+    try {
+      const d = new Date();
+      const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0")
+        + "_" + String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
+      const tnameKo = T ? T.nameKo : "book";
+      const tname = T ? T.name : "book";
+      const volPad = String(bookNo).padStart(3, "0");
+
+      // 1) 한글본 캡처·저장
+      setBusyKind("print-kr");
+      const docKo = await capturePagesToPdf();
+      const fnameKo = `${volPad}권_인쇄용_${tnameKo}_한글_${stamp}.pdf`;
+      const resKo = await savePdf(docKo, fnameKo);
+
+      // 2) 영문본 — 본문 텍스트·카테고리를 로컬 Ollama로 번역 후 캡처
+      setBusyKind("print-en-번역");
+      const enCompleted = await buildEnCompleted(completed, (n, t) => setBusyKind("print-en-번역 " + n + "/" + t));
+      setExportData(enCompleted); // A4Side 호출부에서 lang="en"으로 전환
+      setBusyKind("print-en");
+      await new Promise(r => setTimeout(r, 300)); // 영문 데이터로 재렌더 대기
+      const docEn = await capturePagesToPdf();
+      const fnameEn = `${volPad}권_인쇄용_${tname}_EN_${stamp}.pdf`;
+      const resEn = await savePdf(docEn, fnameEn);
+
+      alert(`✅ ${bookNo}권 A4 인쇄용 PDF 2개 저장 완료\n\n` +
+        `· 한글본: ${resKo.ok ? resKo.path : fnameKo + " (다운로드)"}\n` +
+        `· 영문본: ${resEn.ok ? resEn.path : fnameEn + " (다운로드)"}\n` +
+        `\n폴더: make_book/pdf_인쇄용/${bookNo}권/`);
+    } catch (e) {
+      console.error("[print-pdf] 생성 실패:", e);
+      alert("인쇄용 PDF 생성 중 오류 발생: " + e.message);
+    } finally {
+      setExportData(null);
+      po.setAttribute("style", prevStyle);
+      pages.forEach((el, i) => el.setAttribute("style", prevPageStyles[i]));
+      setBusyKind("");
+    }
+  };
+
+  // 오둥이 사진 첨부 — file input → data URL
+  const onOduniUpload = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => setOduniImg(r.result);
+    r.readAsDataURL(f);
+    e.target.value = "";
+  };
+
+  // (이미지 자동 선택 로직은 A4Side 본문 분기에서 직접 처리: _a=4컷+본문카드, _b=일러스트)
 
   // 스프레드 변경 또는 저장 데이터 변경 시 버퍼 동기화
   React.useEffect(() => {
@@ -597,7 +794,7 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
         >‹</button>
         <span className="pages">
           {sp.leftMeta.section === "body"
-            ? `${String(sp.leftPage).padStart(3, "0")}_a – ${String(sp.rightPage).padStart(3, "0")}_b / 030`
+            ? `${String(sp.leftPage).padStart(3, "0")}_a – ${String(sp.rightPage).padStart(3, "0")}_b / 010`
             : "표지 스프레드"}
         </span>
         <button
@@ -619,7 +816,7 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
           className="btn pdf-btn"
           onClick={() => exportCardPDF("ko")}
           disabled={!!busyKind}
-          title="한글판 10cm 카드 48장 — 인쇄소용 (pdf/card_pdf/)"
+          title="한글판 10cm 카드 10장 (좌→우 인터리브, 001_a~010_b) — 인쇄소용 (pdf/card_pdf/)"
         >
           {busyKind === "card" ? "카드 생성 중…" : "▣ PDF카드"}
         </button>
@@ -641,10 +838,56 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
           style={{ background: "#2f3a4d" }}
           onClick={() => exportCardPDF("en")}
           disabled={!!busyKind}
-          title="영문판 카드 48장 — 로컬 번역(한→영) · pdf/card_pdf_en/ 저장"
+          title="영문판 카드 10장 (좌→우 인터리브) — 로컬 번역(한→영) · pdf/card_pdf_en/ 저장"
         >
           {busyKind === "card-en" ? "EN 카드 중…"
             : (busyKind.startsWith && busyKind.startsWith("번역") ? busyKind : "🌐 EN 카드")}
+        </button>
+
+        <div className="nav-spacer"></div>
+        {/* 1권 최종 확정 — 4 PDF 일괄 생성 → pdf_4ea/ */}
+        <button
+          className="btn pdf-btn"
+          style={{ background: "#2f5d3a", color: "#f6ecd6", fontWeight: 600 }}
+          onClick={finalizeBook}
+          disabled={!!busyKind}
+          title={`${bookNo || 1}권 최종 확정 — 4 PDF 일괄 생성 (KR 본문/카드 + EN 본문/카드) → make_book/pdf_4ea/`}
+        >
+          {busyKind === "finalize" ? "📘 최종 확정 중…" : `📘 ${bookNo || 1}권 최종 확정`}
+        </button>
+
+        {/* 오둥이 사진 첨부 — 3번 A4 스프레드용 */}
+        <label
+          className="btn pdf-btn"
+          style={{ background: oduniImg ? "#3a2f5d" : "#5d3a2f", color: "#f6ecd6", cursor: "pointer" }}
+          title="A4 인쇄용 PDF의 3번 스프레드에 들어갈 오둥이 사진 (권별)"
+        >
+          {oduniImg ? "🐶 오둥이 ✓" : "🐶 오둥이 사진"}
+          <input type="file" accept="image/*" onChange={onOduniUpload} style={{ display: "none" }} />
+        </label>
+        {oduniImg && (
+          <button
+            className="btn pdf-btn ghost"
+            onClick={() => setOduniImg(null)}
+            disabled={!!busyKind}
+            title="오둥이 사진 제거"
+            style={{ padding: "4px 8px" }}
+          >✕</button>
+        )}
+
+        {/* A4 인쇄용 PDF — 권별 폴더 자동 생성 */}
+        <button
+          className="btn pdf-btn"
+          style={{ background: "#a83232", color: "#f6ecd6", fontWeight: 600 }}
+          onClick={exportPrintPDF}
+          disabled={!!busyKind}
+          title={`${bookNo || 1}권 A4 인쇄용 PDF (8장 임포지션) → make_book/pdf_인쇄용/${bookNo || 1}권/`}
+        >
+          {busyKind === "print-kr" ? "🖨 한글본 생성 중…"
+           : busyKind === "print-en" ? "🖨 영문본 생성 중…"
+           : (busyKind && busyKind.startsWith && busyKind.startsWith("print-en-번역"))
+              ? ("🖨 영문 " + busyKind.replace("print-en-", ""))
+              : `🖨 ${bookNo || 1}권 인쇄용 PDF`}
         </button>
       </div>
 
@@ -675,6 +918,25 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
               side="right"
               editable={false}
             />
+          </div>
+        ))}
+      </div>
+
+      {/* A4 인쇄용 임포지션 — 8 A4 가로 페이지, 중앙 1.5cm 펀칭, 좌·우 141mm × 210mm */}
+      <div className="print-impose-only">
+        {A4_LAYOUT.map((layout, i) => (
+          <div key={"a4-" + i} className="a4-page" style={{
+            display: "flex", flexDirection: "row", background: "#ffffff",
+            position: "relative", overflow: "hidden"
+          }}>
+            <A4Side slot={layout.left} side="left" T={T} topic={topic}
+                    completed={exportData || completed} oduniImg={oduniImg}
+                    lang={exportData ? "en" : "ko"} />
+            {/* 중심 재단선 — 옅은 회색 점선 1줄 (CSS .a4-punch::before) */}
+            <div className="a4-punch"></div>
+            <A4Side slot={layout.right} side="right" T={T} topic={topic}
+                    completed={exportData || completed} oduniImg={oduniImg}
+                    lang={exportData ? "en" : "ko"} />
           </div>
         ))}
       </div>
@@ -1006,4 +1268,297 @@ function PreviewPage({ page, meta, topic, coverImg, backImg, data, comicSide, si
   );
 }
 
-Object.assign(window, { BookGrid, BookPreview });
+// ─────────────────────────────────────────────────────────────────────────
+// A4 인쇄용 임포지션 한 면 (좌 또는 우, 141mm × 210mm 영역)
+// 슬롯 타입: null(공백) / "front-inner"(앞내지) / "back-inner"(뒷내지) / "oduni-photo"(오둥이) / 페이지번호(본문)
+// 본문 페이지: 상단 1:1 정사각 이미지(141×141mm), 아래 69mm 필기 여백
+// ─────────────────────────────────────────────────────────────────────────
+function A4Side({ slot, side, T, topic, completed, oduniImg, lang }) {
+  const isEn = lang === "en";
+  // 영어 모드일 때 d.topicLabel / d.catLabel은 buildEnCompleted가 미리 채워둠
+  const baseStyle = {
+    width: "calc(141 / 297 * 100%)",
+    height: "100%",
+    background: "#ffffff",
+    position: "relative",
+    boxSizing: "border-box"
+  };
+
+  // 공백
+  if (slot === null || slot === undefined) {
+    return <div className={"a4-side a4-blank a4-" + side} style={baseStyle}></div>;
+  }
+
+  // 앞내지 — 테마(10px) + 고딕 ⚜ 장식 + 카테고리 목차
+  if (slot === "front-inner") {
+    return (
+      <div className={"a4-side a4-front-inner a4-" + side} style={{
+        ...baseStyle,
+        padding: "10% 8%",
+        display: "flex", flexDirection: "column"
+      }}>
+        <div style={{
+          textAlign: "center", marginBottom: "8%",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: "1em"
+        }}>
+          <span style={{ fontSize: "32px", color: "var(--topic-accent, #8b7355)" }}>⚜</span>
+          <span style={{
+            fontSize: "30px", letterSpacing: "0.5em",
+            color: "var(--ink, #2b1d13)", textTransform: "uppercase",
+            fontFamily: "var(--font-serif, serif)"
+          }}>
+            {isEn ? (T ? T.name : "") : ((T ? T.nameKo : "") + " · " + (T ? T.name : ""))}
+          </span>
+          <span style={{ fontSize: "32px", color: "var(--topic-accent, #8b7355)" }}>⚜</span>
+        </div>
+        <div style={{
+          height: 1, background: "rgba(74,36,21,0.25)", margin: "0 auto 6%", width: "60%"
+        }}></div>
+        <div style={{
+          fontSize: "14px", color: "var(--ink-soft, #6b5440)",
+          letterSpacing: "0.2em", textAlign: "center", marginBottom: "5%"
+        }}>{isEn ? "CONTENTS" : "목 차"}</div>
+        <div style={{
+          display: "flex", flexDirection: "column", gap: "14px",
+          fontFamily: "var(--font-serif, serif)", fontSize: "20px",
+          color: "var(--ink, #2b1d13)"
+        }}>
+          {[1, 2, 3, 4, 5].map(i => {
+            const d = completed[i] || {};
+            const pa = String((i - 1) * 2 + 1).padStart(3, "0");
+            const pb = String((i - 1) * 2 + 2).padStart(3, "0");
+            return (
+              <div key={i} style={{
+                display: "flex", justifyContent: "space-between",
+                borderBottom: "1px dotted rgba(74,36,21,0.25)",
+                paddingBottom: "6px"
+              }}>
+                <span style={{ color: "var(--ink-muted, #8a7560)", letterSpacing: "0.05em" }}>
+                  {pa}–{pb}
+                </span>
+                <span style={{ fontWeight: 600 }}>{isEn ? (d.catLabel || d.category || "—") : (d.category || "—")}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // 뒷내지 — 5개 본문의 명언·구절 목록
+  if (slot === "back-inner") {
+    return (
+      <div className={"a4-side a4-back-inner a4-" + side} style={{
+        ...baseStyle,
+        padding: "10% 8%",
+        display: "flex", flexDirection: "column"
+      }}>
+        <div style={{
+          textAlign: "center", marginBottom: "8%",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: "1em"
+        }}>
+          <span style={{ fontSize: "26px", color: "var(--topic-accent, #8b7355)" }}>❦</span>
+          <span style={{
+            fontSize: "30px", letterSpacing: "0.3em",
+            color: "var(--ink, #2b1d13)", fontFamily: "var(--font-serif, serif)"
+          }}>{isEn ? "QUOTES" : "명 언 · 구 절"}</span>
+          <span style={{ fontSize: "26px", color: "var(--topic-accent, #8b7355)" }}>❦</span>
+        </div>
+        <div style={{
+          display: "flex", flexDirection: "column", gap: "20px",
+          fontFamily: "var(--font-serif, serif)", fontSize: "16px",
+          color: "var(--ink, #2b1d13)", lineHeight: 1.55
+        }}>
+          {[1, 2, 3, 4, 5].map(i => {
+            const d = completed[i] || {};
+            const firstLine = (d.body || "").split("\n").find(l => l.trim()) || "";
+            const q = d.quote || firstLine || "—";
+            const pa = String((i - 1) * 2 + 1).padStart(3, "0");
+            return (
+              <div key={i}>
+                <div style={{
+                  fontSize: "11px", letterSpacing: "0.15em",
+                  color: "var(--ink-muted, #8a7560)", marginBottom: "4px"
+                }}>{pa} · {isEn ? (d.catLabel || d.category || "") : (d.category || "")}</div>
+                <div style={{ fontStyle: "italic" }}>"{q}"</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // 테마 마크 — 작업실 선택 철학을 한글·영어로 정중앙(15px), 고딕 ⚜ 앞뒤 장식
+  if (slot === "theme-mark") {
+    return (
+      <div className={"a4-side a4-theme-mark a4-" + side} style={{
+        ...baseStyle,
+        display: "flex", alignItems: "center", justifyContent: "center"
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          gap: "1.4em"
+        }}>
+          <span style={{
+            fontSize: "32px",
+            color: "var(--topic-accent, #8b7355)",
+            lineHeight: 1
+          }}>⚜</span>
+          <span style={{
+            fontSize: "50px",
+            letterSpacing: "0.4em",
+            color: "var(--ink, #2b1d13)",
+            fontFamily: "var(--font-serif, serif)",
+            fontWeight: 500,
+            whiteSpace: "nowrap"
+          }}>
+            {isEn ? (T ? T.name : "") : ((T ? T.nameKo : "") + " · " + (T ? T.name : ""))}
+          </span>
+          <span style={{
+            fontSize: "32px",
+            color: "var(--topic-accent, #8b7355)",
+            lineHeight: 1
+          }}>⚜</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 오둥이 사진
+  if (slot === "oduni-photo") {
+    return (
+      <div className={"a4-side a4-photo a4-" + side} style={{
+        ...baseStyle,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "5%"
+      }}>
+        {oduniImg ? (
+          <img src={oduniImg} alt="오둥이"
+               style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain",
+                        boxShadow: "0 6px 24px rgba(0,0,0,0.18)" }} />
+        ) : (
+          <div style={{
+            width: "80%", aspectRatio: "1 / 1",
+            border: "2px dashed rgba(74,36,21,0.35)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexDirection: "column", gap: "12px",
+            color: "var(--ink-muted, #8a7560)", fontSize: "16px"
+          }}>
+            <span style={{ fontSize: "48px" }}>🐶</span>
+            <span>오둥이 사진 미첨부</span>
+            <span style={{ fontSize: "12px" }}>미리보기 nav에서 첨부하세요</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 본문 페이지 (숫자 1~10)
+  //  _a (홀수) = 1:1 정사각 카드 안에 좌 4컷 + 우 본문 텍스트 (기존 본문 카드와 동일 디자인)
+  //  _b (짝수) = 1:1 정사각 일러스트 이미지 1장
+  if (typeof slot === "number") {
+    const workIdx = Math.floor((slot - 1) / 2) + 1;
+    const d = completed[workIdx] || {};
+    const isAside = slot % 2 === 1;
+    const pad = String(slot).padStart(3, "0");
+
+    // 본문 텍스트 첫 줄=타이틀, 나머지=본문
+    const source = d.body || "";
+    const lines0 = source.split("\n");
+    const fIdx = lines0.findIndex(l => l.trim().length > 0);
+    const titleLine = fIdx >= 0 ? lines0[fIdx] : "";
+    const bodyText = (fIdx >= 0 ? lines0.slice(fIdx + 1).join("\n") : "").replace(/\s+$/, "");
+
+    return (
+      <div className={"a4-side a4-body a4-" + side} style={{
+        ...baseStyle,
+        display: "flex", flexDirection: "column",
+        padding: 0
+      }}>
+        {/* 상단 1:1 정사각 영역 (141×141mm = 영역 폭만큼) */}
+        <div style={{
+          width: "100%",
+          aspectRatio: "1 / 1",
+          position: "relative",
+          overflow: "hidden",
+          flexShrink: 0
+        }}>
+          {isAside ? (
+            // _a 페이지 — 본문 카드 (기존 .card-slot 디자인 그대로)
+            <div className="card-slot" style={{
+              position: "absolute", inset: 0, width: "100%", height: "100%"
+            }}>
+              <span className="corner tl"></span>
+              <span className="corner tr"></span>
+              <span className="corner bl"></span>
+              <span className="corner br"></span>
+              <div className="card-inner">
+                <div className="card-cat">
+                  <span className="orn">⚜</span>
+                  <span className="cc-topic">{isEn ? (d.topicLabel || (T ? T.name : "")) : (T ? T.nameKo : "")}</span>
+                  {(d.catLabel || d.category) && <span className="cc-cat">· {isEn ? (d.catLabel || d.category) : d.category}</span>}
+                  <span className="orn">⚜</span>
+                </div>
+                <div className="card-split">
+                  <div className="cs-left">
+                    {d.comicImg ? (
+                      <img src={d.comicImg} alt="" />
+                    ) : (
+                      <div className="cs-comic-ph">
+                        {[0, 1, 2, 3].map(i => (
+                          <div key={i} className="cc-panel"></div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="cs-right">
+                    <div className="text-title book-title-strong">
+                      <span className="title-quote">"{titleLine || `사유 #${workIdx}`}"</span>
+                    </div>
+                    <AutoFitBody text={bodyText} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // _b 페이지 — 일러스트 이미지 1장 (1:1 가득)
+            d.illustImg ? (
+              <img src={d.illustImg} alt=""
+                   style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            ) : (
+              <div style={{
+                position: "absolute", inset: 0,
+                background: "#fafafa",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "rgba(74,36,21,0.35)",
+                fontSize: "14px", letterSpacing: "0.2em"
+              }}>일러스트 이미지 미첨부</div>
+            )
+          )}
+        </div>
+        {/* 하단 필기 여백 (69mm) — 페이지 번호는 영역 중앙 하단에 - NNN - 형식 */}
+        <div style={{
+          flex: 1,
+          position: "relative",
+          background: "#ffffff"
+        }}>
+          <div style={{
+            position: "absolute",
+            bottom: "20px",
+            left: 0, right: 0,
+            textAlign: "center",
+            fontSize: "13px",
+            color: "rgba(74,36,21,0.55)",
+            letterSpacing: "0.3em",
+            fontFamily: "var(--font-serif, serif)"
+          }}>– {slot} –</div>
+        </div>
+      </div>
+    );
+  }
+
+  return <div className={"a4-side a4-" + side} style={baseStyle}></div>;
+}
+
+Object.assign(window, { BookGrid, BookPreview, A4Side });

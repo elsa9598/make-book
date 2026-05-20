@@ -6,9 +6,9 @@ const { useState: useStateUT, useMemo: useMemoUT } = React;
 
 const LEDGER_KEY = "artbook_quote_ledger_v1";
 const BOOKNO_KEY = "artbook_book_no_v1";
-const SERIES_BOOKS = 30;     // 주제별 30권
-const WORKS_PER_BOOK = 15;   // 권당 본문 15편(탈무드5+니체5+쇼펜하우어5)
-const TARGET_PER_TOPIC = SERIES_BOOKS * WORKS_PER_BOOK; // 720
+const SERIES_BOOKS = 200;    // 주제별 200권 (1주제 명언 풀 1000개 ÷ 5편 = 200권)
+const WORKS_PER_BOOK = 5;    // 권당 본문 5편 (스프레드 5)
+const TARGET_PER_TOPIC = SERIES_BOOKS * WORKS_PER_BOOK; // 1000 (= 카테고리 10 × 100, 풀 전체 사용)
 
 function ledgerLoad() {
   try { return JSON.parse(localStorage.getItem(LEDGER_KEY) || "{}"); }

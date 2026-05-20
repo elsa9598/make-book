@@ -254,9 +254,8 @@ ${category}은 그래서 외부에서 오지 않는다.
   return samples[topic] || samples.talmud;
 }
 
-function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetryLog, busy, setBusy, versions, setVersions, onSaveToBook, locked }) {
+function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetryLog, busy, setBusy, versions, setVersions, activeVer, setActiveVer, onSaveToBook, locked }) {
   const [dirty, setDirty] = useState(false);
-  const [activeVer, setActiveVer] = useState(null);
   const [genVia, setGenVia] = useState("");
 
   const saveVersion = (source = "manual") => {

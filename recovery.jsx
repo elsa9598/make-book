@@ -9,8 +9,8 @@ function fileToSpreadIdx(file) {
   const m = /(\d{1,3})_([ab])/.exec(file || "");
   if (!m) return null;
   const pg = parseInt(m[1], 10);
-  const i = Math.floor((pg - 1) / 2) + 1; // 1..24
-  return (i >= 1 && i <= 24) ? i : null;
+  const i = Math.floor((pg - 1) / 2) + 1; // 1..5
+  return (i >= 1 && i <= 5) ? i : null;
 }
 
 function RecoveryPanel({ completed, setCompleted, setToast }) {

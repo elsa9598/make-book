@@ -52,7 +52,22 @@ function savePdf(req, res) {
       let name = String(j.filename || "artbook.pdf").replace(/[^\w.\-가-힣]+/g, "_");
       if (!name.toLowerCase().endsWith(".pdf")) name += ".pdf";
       const sub = j.sub ? String(j.sub).replace(/[^\w.\-가-힣]+/g, "_").slice(0, 32) : "";
-      const dir = sub ? path.join(ROOT, "pdf", sub) : path.join(ROOT, "pdf");
+      // pdf_4ea = 1권 최종 확정 산출물 → ROOT 직속 (make_book/pdf_4ea/)
+      // printVol (1~600) = A4 인쇄용 임포지션 PDF → ROOT/pdf_인쇄용/{N}권/
+      // 그 외는 pdf/{sub}
+      let dir;
+      if (sub === "pdf_4ea") {
+        dir = path.join(ROOT, "pdf_4ea");
+      } else if (j.printVol) {
+        const vol = parseInt(j.printVol, 10);
+        if (Number.isFinite(vol) && vol >= 1 && vol <= 600) {
+          dir = path.join(ROOT, "pdf_인쇄용", vol + "권");
+        } else {
+          dir = path.join(ROOT, "pdf_인쇄용");
+        }
+      } else {
+        dir = sub ? path.join(ROOT, "pdf", sub) : path.join(ROOT, "pdf");
+      }
       fs.mkdirSync(dir, { recursive: true });
       const buf = Buffer.from(String(j.data || ""), "base64");
       const full = path.join(dir, name);
