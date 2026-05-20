@@ -238,13 +238,16 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
   const toggleArr = (arr, setArr) => (v) =>
     arr.includes(v) ? setArr(arr.filter(x => x !== v)) : setArr([...arr, v]);
 
-  // 본문 → 첫 줄 제거(타이틀=명언) → 250자 요약
+  // 본문 → 본문 전체를 영어 프롬프트에 반영 (최대 1500자)
+  // 단, 본문 첫 줄이 quote와 같으면(=명언 중복) 그 줄만 제거. 다르면 본문 전체 그대로.
   const bodySnippet = useMemoPG(() => {
     const body = ctx?.body || "";
+    const quote = (ctx?.quote || "").trim();
     const lines = body.split("\n").filter(l => l.trim());
-    const rest = lines.slice(1).join(" ").trim();
-    return rest.slice(0, 280);
-  }, [ctx?.body]);
+    const firstIsQuote = quote && lines.length && lines[0].trim() === quote;
+    const rest = (firstIsQuote ? lines.slice(1) : lines).join(" ").trim();
+    return rest.slice(0, 1500);
+  }, [ctx?.body, ctx?.quote]);
 
   const builderState = {
     chars, customChars, backgrounds, customBg, times, customTime,
@@ -505,7 +508,7 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
               <div className="pg-context-quote">"{ctx.quote}"</div>
               {bodySnippet && (
                 <>
-                  <div className="pg-context-label" style={{marginTop: 10}}>본문 (요약 280자)</div>
+                  <div className="pg-context-label" style={{marginTop: 10}}>본문 (최대 1500자)</div>
                   <div className="pg-context-body">{bodySnippet}</div>
                 </>
               )}

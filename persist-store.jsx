@@ -54,5 +54,23 @@
     }
   }
 
-  window.ArtbookStore = { get, set };
+  // 모든 키 목록 — 권별 workspace 정렬 등에 사용
+  async function keys() {
+    try {
+      const db = await open();
+      const v = await new Promise((res, rej) => {
+        const tx = db.transaction(STORE, "readonly");
+        const rq = tx.objectStore(STORE).getAllKeys();
+        rq.onsuccess = () => res(rq.result || []);
+        rq.onerror = () => rej(rq.error);
+      });
+      db.close();
+      return v;
+    } catch (e) {
+      console.warn("[ArtbookStore] 키 목록 실패:", e && e.message);
+      return [];
+    }
+  }
+
+  window.ArtbookStore = { get, set, keys };
 })();

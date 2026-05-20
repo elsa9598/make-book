@@ -13,38 +13,98 @@ function fileToSpreadIdx(file) {
   return (i >= 1 && i <= 5) ? i : null;
 }
 
-function RecoveryPanel({ completed, setCompleted, setToast }) {
-  const [ws, setWs] = useStateRC(null);
+function RecoveryPanel({ completed, setCompleted, setToast, bookNo, onChangeBookNo, topic, onChangeTopic }) {
+  // workspaces = [{ topic, topicLabel, vol, key, data }, …]
+  const [workspaces, setWorkspaces] = useStateRC([]);
   const [pageBk, setPageBk] = useStateRC({});
   const [legacy, setLegacy] = useStateRC({});
   const [loading, setLoading] = useStateRC(true);
 
+  // workspace 키 → { topic, vol } 파싱
+  const parseWsKey = (k) => {
+    // 새 형식: workspace_{nameKo}_{NNN}권 (예: workspace_탈무드_001권)
+    const mNew = /^workspace_(.+)_(\d{1,3})권$/.exec(k);
+    if (mNew) {
+      const nameKo = mNew[1];
+      // nameKo → topic 키 역매핑
+      const topics = window.TOPICS || {};
+      const found = Object.keys(topics).find(t => topics[t].nameKo === nameKo);
+      return { topic: found || nameKo, topicLabel: nameKo, vol: parseInt(mNew[2], 10) };
+    }
+    // 구 형식: workspace_{NNN}권 — 주제 모름 ("미지정" 표시)
+    const mOld = /^workspace_(\d{1,3})권$/.exec(k);
+    if (mOld) return { topic: null, topicLabel: "(주제 미지정)", vol: parseInt(mOld[1], 10) };
+    return null;
+  };
+
   const reload = async () => {
     setLoading(true);
     if (!window.ArtbookStore) { setLoading(false); return; }
-    const a = await window.ArtbookStore.get("workspace");
+
+    const allKeys = (window.ArtbookStore.keys ? await window.ArtbookStore.keys() : []);
+    const volKeys = allKeys.filter(k => typeof k === "string" && /^workspace_.+_\d{1,3}권$|^workspace_\d{1,3}권$/.test(k));
+
+    const vols = [];
+    for (const k of volKeys) {
+      const parsed = parseWsKey(k);
+      const v = await window.ArtbookStore.get(k);
+      if (parsed && v) vols.push({ ...parsed, key: k, data: v });
+    }
+
+    // 정렬: ① 현재 주제+권 맨 위 → ② 같은 주제(현재 topic)의 다른 권 → ③ 다른 주제 → savedAt 내림차순
+    vols.sort((a, b) => {
+      const aCurrent = a.topic === topic && a.vol === bookNo;
+      const bCurrent = b.topic === topic && b.vol === bookNo;
+      if (aCurrent && !bCurrent) return -1;
+      if (bCurrent && !aCurrent) return 1;
+      const aSameTopic = a.topic === topic;
+      const bSameTopic = b.topic === topic;
+      if (aSameTopic && !bSameTopic) return -1;
+      if (bSameTopic && !aSameTopic) return 1;
+      const ta = (a.data && a.data.savedAt) || "";
+      const tb = (b.data && b.data.savedAt) || "";
+      if (ta && !tb) return -1;
+      if (!ta && tb) return 1;
+      return tb.localeCompare(ta);
+    });
+
+    // 현재 주제·권이 vols에 없으면 빈 카드 맨 위 추가
+    if (!vols.find(v => v.topic === topic && v.vol === bookNo)) {
+      const T = window.TOPICS[topic];
+      vols.unshift({
+        topic, topicLabel: T ? T.nameKo : topic, vol: bookNo,
+        key: window.QuoteLedger.workspaceKey(topic, bookNo),
+        data: { completed: {}, savedAt: null }
+      });
+    }
+    setWorkspaces(vols);
+
     const b = await window.ArtbookStore.get("page_backups");
     const c = await window.ArtbookStore.get("spread_backups");
-    setWs(a || null);
     setPageBk(b || {});
     setLegacy(c || {});
     setLoading(false);
   };
-  useEffectRC(() => { reload(); }, []);
+  useEffectRC(() => { reload(); }, [bookNo, topic]);
 
-  const restoreWorkspace = () => {
-    if (!ws || !ws.completed) return;
-    if (!window.confirm("자동저장된 전체 작업물을 현재 화면으로 되살립니다. 계속할까요?")) return;
-    setCompleted(ws.completed);
-    if (ws.coverImg && window.__setCover) window.__setCover(ws.coverImg);
-    const firstKey = Object.keys(ws.completed)[0];
-    if (firstKey != null && window.restoreToWorkshop) {
-      window.restoreToWorkshop(parseInt(firstKey, 10), ws.completed[firstKey]);
-    } else if (window.gotoTab) {
-      window.gotoTab("workshop");
+  // 특정 주제·권으로 전환 + 자동 복원
+  const switchToVolume = async (toTopic, vol) => {
+    if (toTopic === topic && vol === bookNo) {
+      setToast && setToast({ kind: "ok", text: `이미 작업 중입니다` });
+      setTimeout(() => setToast && setToast(null), 2500);
+      return;
     }
-    setToast && setToast({ kind: "ok", text: "✓ 자동저장 전체 복원됨 — 작업실에서 확인하세요" });
-    setTimeout(() => setToast && setToast(null), 4000);
+    const T = window.TOPICS[toTopic];
+    const label = T ? T.nameKo : toTopic;
+    if (!window.confirm(`${label} ${vol}권으로 전환하시겠습니까?\n(현재 작업물은 자동 저장됩니다)`)) return;
+    if (toTopic !== topic && onChangeTopic) {
+      // 주제 전환 후 그 주제의 vol로 다시 이동
+      await onChangeTopic(toTopic);
+      if (onChangeBookNo) await onChangeBookNo(vol);
+    } else if (onChangeBookNo) {
+      await onChangeBookNo(vol);
+    }
+    if (window.gotoTab) window.gotoTab("workshop");
   };
 
   // 명언으로 올바른 주제·카테고리 자동 판별
@@ -66,13 +126,13 @@ function RecoveryPanel({ completed, setCompleted, setToast }) {
     return d.confirmed ? (fl || d.quote || "") : (d.quote || fl || "");
   };
 
-  // 카테고리·구절을 명언 풀 기준으로 자동 정정 (잘못 박힌 #1 등)
-  const fixCategories = () => {
-    if (!ws || !ws.completed) return;
+  // 특정 카드의 카테고리·구절 자동 정정 (IndexedDB·화면 모두 갱신)
+  const fixCategoriesForVolume = async (w) => {
+    if (!w || !w.data || !w.data.completed) return;
     const next = {};
     let fixed = 0;
-    Object.keys(ws.completed).forEach(k => {
-      const d = { ...ws.completed[k] };
+    Object.keys(w.data.completed).forEach(k => {
+      const d = { ...w.data.completed[k] };
       const hit = findQuoteCat(realQuote(d));
       if (hit) {
         if (d.topic !== hit.topic || d.category !== hit.category) fixed++;
@@ -82,20 +142,25 @@ function RecoveryPanel({ completed, setCompleted, setToast }) {
       }
       next[k] = d;
     });
-    setCompleted(next);
-    setWs({ ...ws, completed: next });
-    setToast && setToast({ kind: "ok", text: `🛠 ${fixed}개 항목 카테고리·구절 자동 정정 (명언 기준)` });
+    const newData = { ...w.data, completed: next };
+    await window.ArtbookStore.set(w.key, newData);
+    setWorkspaces(prev => prev.map(x => x.key === w.key ? { ...x, data: newData } : x));
+    if (w.topic === topic && w.vol === bookNo) setCompleted(next);
+    setToast && setToast({ kind: "ok", text: `🛠 ${w.topicLabel} ${w.vol}권 — ${fixed}개 항목 자동 정정` });
     setTimeout(() => setToast && setToast(null), 3500);
   };
 
-  // 자동저장에서 특정 스프레드 항목 삭제 (#6 제거 등)
-  const deleteWsSpread = (k) => {
-    if (!window.confirm(`#${k} 항목을 자동저장에서 삭제할까요? (페이지별 백업은 남습니다)`)) return;
-    const next = { ...ws.completed };
+  // 특정 카드의 스프레드 항목 삭제
+  const deleteVolumeSpread = async (w, k) => {
+    if (!w || !w.data || !w.data.completed) return;
+    if (!window.confirm(`${w.topicLabel} ${w.vol}권 #${k} 항목을 자동저장에서 삭제할까요? (페이지별 백업은 남습니다)`)) return;
+    const next = { ...w.data.completed };
     delete next[k];
-    setCompleted(next);
-    setWs({ ...ws, completed: next });
-    setToast && setToast({ kind: "ok", text: `🗑 #${k} 삭제됨` });
+    const newData = { ...w.data, completed: next };
+    await window.ArtbookStore.set(w.key, newData);
+    setWorkspaces(prev => prev.map(x => x.key === w.key ? { ...x, data: newData } : x));
+    if (w.topic === topic && w.vol === bookNo) setCompleted(next);
+    setToast && setToast({ kind: "ok", text: `🗑 ${w.topicLabel} ${w.vol}권 #${k} 삭제됨` });
     setTimeout(() => setToast && setToast(null), 3000);
   };
 
@@ -123,7 +188,6 @@ function RecoveryPanel({ completed, setCompleted, setToast }) {
     setTimeout(() => setToast && setToast(null), 3500);
   };
 
-  const wsCount = ws && ws.completed ? Object.keys(ws.completed).length : 0;
   const pageFiles = Object.keys(pageBk).sort();
   const legacyKeys = Object.keys(legacy);
 
@@ -133,7 +197,7 @@ function RecoveryPanel({ completed, setCompleted, setToast }) {
         <div>
           <div className="usage-h">작업물 복구</div>
           <div className="usage-sub">
-            브라우저 자동저장(IndexedDB)에서 복원합니다. AI 생성·저장·MAKE한 내용은 여기 남아 있습니다.
+            주제별 권 자동저장(IndexedDB)에서 복원합니다. <b style={{color:"#2f5d3a"}}>현재 작업 중인 {window.TOPICS[topic] ? window.TOPICS[topic].nameKo : topic} {bookNo}권</b>을 맨 위, 그 다음은 같은 주제의 다른 권 → 다른 주제 순으로 정렬합니다.
           </div>
         </div>
         <div className="usage-actions">
@@ -145,42 +209,65 @@ function RecoveryPanel({ completed, setCompleted, setToast }) {
         <div className="hint" style={{ padding: 30 }}>불러오는 중…</div>
       ) : (
         <>
-          <div className="usage-book-card" style={{ marginBottom: 14 }}>
-            <div className="ubc-head">
-              <span className="ubc-no">최신 자동저장 (workspace)</span>
-              <span className="ubc-cnt">{wsCount}개 스프레드 · {ws && ws.savedAt ? ws.savedAt : "기록 없음"}</span>
-              <span className="ubc-spacer"></span>
-              {wsCount > 0 && (
-                <>
-                  <button className="btn" style={{ fontSize: 11, marginRight: 6 }} onClick={fixCategories}
-                    title="명언 풀과 대조해 잘못된 카테고리·구절을 자동 정정">🛠 카테고리 자동정정</button>
-                  <button className="btn primary" style={{ fontSize: 11 }} onClick={restoreWorkspace}>전체 복원</button>
-                </>
-              )}
-            </div>
-            {wsCount === 0
-              ? <div className="ubc-empty">자동저장된 전체 스냅샷이 없습니다. 아래 페이지별 백업을 확인하세요.</div>
-              : (
-                <ul className="ubc-list">
-                  {Object.keys(ws.completed).map(k => {
-                    const d = ws.completed[k] || {};
-                    const first = (d.body || "").split("\n").find(l => l.trim()) || "(본문 없음)";
-                    const hit = findQuoteCat(realQuote(d));
-                    const catNow = hit ? hit.category : (d.category || "—");
-                    const wrong = hit && d.category !== hit.category;
-                    return (
-                      <li key={k}>
-                        <span className="ubc-pos">#{k}{d.confirmed ? " ✓" : ""}</span>
-                        <span className="ubc-cat" title={wrong ? `저장값: ${d.category} → 정정: ${hit.category}` : ""}
-                          style={wrong ? { color: "#a83232" } : undefined}>{catNow}{wrong ? " ⚠" : ""}</span>
-                        <span className="ubc-q">{first.slice(0, 38)}{d.comicImg ? " 🖼4컷" : ""}{d.illustImg ? " 🖼상징" : ""}</span>
-                        <button className="ubc-x" onClick={() => deleteWsSpread(k)} title="이 항목 삭제">✕</button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-          </div>
+          {workspaces.length === 0 && (
+            <div className="ubc-empty" style={{ padding: 24 }}>저장된 권별 작업물이 없습니다.</div>
+          )}
+          {workspaces.map(w => {
+            const c = (w.data && w.data.completed) || {};
+            const ks = Object.keys(c);
+            const isCurrent = w.topic === topic && w.vol === bookNo;
+            const confirmedN = ks.filter(k => c[k] && c[k].confirmed).length;
+            return (
+              <div key={w.key}
+                className="usage-book-card"
+                style={{
+                  marginBottom: 14,
+                  border: isCurrent ? "2px solid #2f5d3a" : undefined,
+                  background: isCurrent ? "rgba(47,93,58,0.04)" : undefined
+                }}>
+                <div className="ubc-head">
+                  <span className="ubc-no" style={{ fontWeight: 700, color: isCurrent ? "#2f5d3a" : undefined }}>
+                    {isCurrent ? "📘 " : ""}{w.topicLabel} {w.vol}권{isCurrent ? " (작업 중)" : ""}
+                  </span>
+                  <span className="ubc-cnt">
+                    {ks.length}/5 스프레드 · 확정 {confirmedN}/5 · {w.data && w.data.savedAt ? w.data.savedAt : "기록 없음"}
+                  </span>
+                  <span className="ubc-spacer"></span>
+                  {ks.length > 0 && (
+                    <button className="btn" style={{ fontSize: 11, marginRight: 6 }}
+                      onClick={() => fixCategoriesForVolume(w)}
+                      title="명언 풀과 대조해 잘못된 카테고리·구절을 자동 정정">🛠 자동정정</button>
+                  )}
+                  {!isCurrent && w.topic && (
+                    <button className="btn primary" style={{ fontSize: 11 }}
+                      onClick={() => switchToVolume(w.topic, w.vol)}>이 권으로 전환</button>
+                  )}
+                </div>
+                {ks.length === 0
+                  ? <div className="ubc-empty">이 권엔 저장된 스프레드가 없습니다.</div>
+                  : (
+                    <ul className="ubc-list">
+                      {ks.sort((a, b) => parseInt(a) - parseInt(b)).map(k => {
+                        const d = c[k] || {};
+                        const first = (d.body || "").split("\n").find(l => l.trim()) || "(본문 없음)";
+                        const hit = findQuoteCat(realQuote(d));
+                        const catNow = hit ? hit.category : (d.category || "—");
+                        const wrong = hit && d.category !== hit.category;
+                        return (
+                          <li key={k}>
+                            <span className="ubc-pos">#{k}{d.confirmed ? " ✓" : ""}</span>
+                            <span className="ubc-cat" title={wrong ? `저장값: ${d.category} → 정정: ${hit.category}` : ""}
+                              style={wrong ? { color: "#a83232" } : undefined}>{catNow}{wrong ? " ⚠" : ""}</span>
+                            <span className="ubc-q">{first.slice(0, 38)}{d.comicImg ? " 🖼4컷" : ""}{d.illustImg ? " 🖼상징" : ""}</span>
+                            <button className="ubc-x" onClick={() => deleteVolumeSpread(w, k)} title="이 항목 삭제">✕</button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+              </div>
+            );
+          })}
 
           <div className="usage-h" style={{ fontSize: 18, margin: "10px 0 8px" }}>페이지별 백업 ({pageFiles.length}개 파일)</div>
           {pageFiles.length === 0 && <div className="ubc-empty">페이지별 백업이 없습니다.</div>}

@@ -68,11 +68,13 @@ function App() {
   // Toast
   const [toast, setToast] = useStateApp(null);
 
-  // 시리즈 명언 사용 대장 + 작업 권 (1~200)
+  // 시리즈 명언 사용 대장 + 주제별 작업 권 (각 주제 1~200)
   const [ledger, setLedger] = useStateApp(() => window.QuoteLedger.load());
-  const [bookNo, setBookNo] = useStateApp(() => window.QuoteLedger.bookNoLoad());
+  const [bookNoByTopic, setBookNoByTopic] = useStateApp(() => window.QuoteLedger.bookNoByTopicLoad());
+  const bookNo = window.QuoteLedger.bookNoOf(bookNoByTopic, topic);
+  const setBookNo = (n) => setBookNoByTopic(prev => ({ ...prev, [topic]: n }));
   useEffect(() => { window.QuoteLedger.save(ledger); }, [ledger]);
-  useEffect(() => { window.QuoteLedger.bookNoSave(bookNo); }, [bookNo]);
+  useEffect(() => { window.QuoteLedger.bookNoByTopicSave(bookNoByTopic); }, [bookNoByTopic]);
 
   // ───────── 자동 저장 (IndexedDB) — 새로고침·재부팅에도 글·그림 보존 ─────────
   const hydrated = React.useRef(false);
@@ -83,14 +85,33 @@ function App() {
     let alive = true;
     (async () => {
       if (!window.ArtbookStore) { hydrated.current = true; return; }
-      // 권별 workspace 키 (workspace_1권, workspace_2권, …)
-      let snap = await window.ArtbookStore.get(`workspace_${bookNo}권`);
-      // 마이그레이션: 권별 키 없고 1권이면 기존 단일 workspace 키에서 복사
-      if (!snap && bookNo === 1) {
-        const legacy = await window.ArtbookStore.get("workspace");
+      const newKey = window.QuoteLedger.workspaceKey(topic, bookNo);  // workspace_탈무드_001권
+      let snap = await window.ArtbookStore.get(newKey);
+      // 마이그레이션: 새 키 없으면 기존 권별 단일 키(workspace_N권) → 그 본문 topic 기준 새 키로 이전
+      if (!snap) {
+        const legacy = await window.ArtbookStore.get(`workspace_${bookNo}권`);
         if (legacy && typeof legacy === "object") {
-          snap = legacy;
-          await window.ArtbookStore.set("workspace_1권", legacy);
+          // legacy.completed의 본문 topic으로 새 키 결정
+          const c = legacy.completed || {};
+          const bodyTopic = [1, 2, 3, 4, 5]
+            .map(i => c[i] && c[i].topic)
+            .find(Boolean);
+          const migrateKey = window.QuoteLedger.workspaceKey(bodyTopic || topic, bookNo);
+          await window.ArtbookStore.set(migrateKey, legacy);
+          if (migrateKey === newKey) snap = legacy;
+        }
+      }
+      // 더 오래된 마이그레이션: 단일 workspace 키 → 현재 topic+1권
+      if (!snap && bookNo === 1) {
+        const veryLegacy = await window.ArtbookStore.get("workspace");
+        if (veryLegacy && typeof veryLegacy === "object") {
+          const c = veryLegacy.completed || {};
+          const bodyTopic = [1, 2, 3, 4, 5]
+            .map(i => c[i] && c[i].topic)
+            .find(Boolean);
+          const migrateKey = window.QuoteLedger.workspaceKey(bodyTopic || topic, 1);
+          await window.ArtbookStore.set(migrateKey, veryLegacy);
+          if (migrateKey === newKey) snap = veryLegacy;
         }
       }
       if (alive && snap && typeof snap === "object") {
@@ -112,7 +133,7 @@ function App() {
       const now = new Date();
       const ts = now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
       const snap = { completed, coverImg, backImg, oduniImg, savedAt: ts };
-      const ok = await window.ArtbookStore.set(`workspace_${bookNo}권`, snap);
+      const ok = await window.ArtbookStore.set(window.QuoteLedger.workspaceKey(topic, bookNo), snap);
       if (ok) setSavedAt(ts);
 
       // 페이지별 백업 누적 — 명세 파일명 규칙: NNN_a(왼쪽) / NNN_b(오른쪽)
@@ -148,25 +169,24 @@ function App() {
         await window.ArtbookStore.set("page_backups", backups);
       } catch (e) { /* 백업 실패는 본 저장에 영향 주지 않음 */ }
     }, 700);
-  }, [completed, coverImg, backImg, oduniImg, bookNo]);
+  }, [completed, coverImg, backImg, oduniImg, bookNo, topic]);
 
-  // 권 전환 — 이전 권 즉시 저장 + 새 권 로드 (작업물 자동 보존·복원)
-  const onChangeBookNo = async (newBookNo) => {
-    if (newBookNo === bookNo) return;
-    const prev = bookNo;
+  // 주제·권 전환 공통 헬퍼 — (newTopic, newBookNo)로 이전 키 저장 + 새 키 로드 + 상태 리셋
+  const switchWorkspace = async (newTopic, newBookNo, opts = {}) => {
+    const prevTopic = topic, prevBookNo = bookNo;
+    if (newTopic === prevTopic && newBookNo === prevBookNo) return;
 
     try {
       if (window.ArtbookStore) {
-        // 1) 이전 권 데이터 즉시 저장 (디바운스 무시)
         clearTimeout(saveTimer.current);
         const now = new Date();
         const ts = now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
-        await window.ArtbookStore.set(`workspace_${prev}권`, {
+        // 1) 이전 주제+권 데이터 즉시 저장
+        await window.ArtbookStore.set(window.QuoteLedger.workspaceKey(prevTopic, prevBookNo), {
           completed, coverImg, backImg, oduniImg, savedAt: ts
         });
-
-        // 2) 새 권 데이터 로드
-        const next = await window.ArtbookStore.get(`workspace_${newBookNo}권`);
+        // 2) 새 주제+권 데이터 로드
+        const next = await window.ArtbookStore.get(window.QuoteLedger.workspaceKey(newTopic, newBookNo));
         if (next && typeof next === "object") {
           setCompleted(next.completed || {});
           setCoverImg(next.coverImg || null);
@@ -174,7 +194,6 @@ function App() {
           setOduniImg(next.oduniImg || null);
           setSavedAt(next.savedAt || null);
         } else {
-          // 새 권 — 빈 상태로 리셋
           setCompleted({});
           setCoverImg(null);
           setBackImg(null);
@@ -183,7 +202,7 @@ function App() {
         }
       }
     } catch (e) {
-      console.warn("[bookNo-switch] 저장/로드 실패:", e.message);
+      console.warn("[workspace-switch] 저장/로드 실패:", e.message);
     }
 
     // 3) 작업실 상태 리셋
@@ -198,11 +217,29 @@ function App() {
     setIllustImg(null);
     setRetryLog([]);
 
-    // 4) 권 번호 갱신 — localStorage에도 저장됨 (useEffect)
-    setBookNo(newBookNo);
+    // 4) 주제·권 갱신
+    if (newTopic !== prevTopic) setTopic(newTopic);
+    setBookNoByTopic(prev => ({ ...prev, [newTopic]: newBookNo }));
 
-    setToast({ kind: "ok", text: `📘 ${newBookNo}권으로 전환됨 — 작업물 자동 복원/리셋` });
-    setTimeout(() => setToast(null), 3000);
+    const T = window.TOPICS[newTopic];
+    const tName = T ? T.nameKo : newTopic;
+    if (!opts.silent) {
+      setToast({ kind: "ok", text: `📘 ${tName} ${newBookNo}권으로 전환됨` });
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  // 권 전환 — 현재 주제 안에서 권만 바꿈
+  const onChangeBookNo = async (newBookNo) => {
+    if (newBookNo === bookNo) return;
+    await switchWorkspace(topic, newBookNo);
+  };
+
+  // 주제 전환 — 그 주제의 마지막 작업 권으로 자동 이동
+  const onChangeTopic = async (newTopic) => {
+    if (newTopic === topic) return;
+    const newBookNo = window.QuoteLedger.bookNoOf(bookNoByTopic, newTopic);
+    await switchWorkspace(newTopic, newBookNo);
   };
 
   // Tweaks
@@ -497,7 +534,7 @@ function App() {
         </div>
         <div className="header-meta">
           <label className="book-select">
-            시리즈
+            {window.TOPICS[topic].nameKo}
             <select value={bookNo} onChange={e => onChangeBookNo(parseInt(e.target.value, 10))}>
               {Array.from({ length: window.QuoteLedger.SERIES_BOOKS }, (_, i) => i + 1).map(b => (
                 <option key={b} value={b}>{b}권</option>
@@ -527,7 +564,7 @@ function App() {
         <>
           {tab === "workshop" && (
         <Workshop
-          topic={topic} setTopic={setTopic}
+          topic={topic} setTopic={setTopic} onChangeTopic={onChangeTopic}
           category={category} setCategory={setCategory}
           quote={quote} setQuote={setQuote}
           currentSpread={currentSpread} setCurrentSpread={setCurrentSpread}
@@ -591,6 +628,10 @@ function App() {
           completed={completed}
           setCompleted={setCompleted}
           setToast={setToast}
+          bookNo={bookNo}
+          onChangeBookNo={onChangeBookNo}
+          topic={topic}
+          onChangeTopic={onChangeTopic}
         />
       )}
         </>
@@ -657,7 +698,7 @@ function App() {
 /* ───────── 작업실 ───────── */
 function Workshop(props) {
   const {
-    topic, setTopic, category, setCategory, quote, setQuote,
+    topic, setTopic, onChangeTopic, category, setCategory, quote, setQuote,
     currentSpread, setCurrentSpread,
     body, setBody, retryLog, setRetryLog, busy, setBusy,
     versions, setVersions, activeVer, setActiveVer, onSaveToBook,
@@ -683,7 +724,7 @@ function Workshop(props) {
               <div
                 key={k}
                 className={"topic-card" + (topic === k ? " active" : "")}
-                onClick={() => setTopic(k)}
+                onClick={() => onChangeTopic && onChangeTopic(k)}
               >
                 <div className="topic-name">{v.nameKo}</div>
                 <div className="topic-sub">{v.name}</div>

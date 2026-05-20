@@ -235,7 +235,15 @@ function CoverAttach({ side, img, onUpload, topicName, topicSub }) {
 
 /* ───────── 미리보기 — 펼침면 넘기기 ───────── */
 function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backImg, comicSide, currentIdx, setCurrentIdx, bookNo, oduniImg, setOduniImg }) {
-  const T = window.TOPICS[topic];
+  // ⚠ 인쇄 사고 방지 — 워크스페이스 본문의 실제 topic을 우선 사용 (현재 topic state X)
+  // 본문 내용은 니체인데 헤더가 탈무드로 잘못 표시되는 케이스 방지
+  const bookTopic = React.useMemo(() => {
+    const found = [1, 2, 3, 4, 5]
+      .map(i => completed[i])
+      .find(d => d && d.topic && window.TOPICS[d.topic]);
+    return found ? found.topic : topic;
+  }, [completed, topic]);
+  const T = window.TOPICS[bookTopic] || window.TOPICS[topic];
   const total = spreads.length;
   const sp = spreads[currentIdx];
   const saved = completed[sp.index];
@@ -306,14 +314,17 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
       } catch (e) { console.warn("[pdf-en] 번역 실패:", e.message); }
       setBusyKind("pdf-en");
     }
-    const po = document.querySelector(".print-only");
+    // opts.selector로 다른 hidden DOM 선택 가능 (예: .print-book-only 인쇄용 본문 디자인)
+    const selector = opts.selector || ".print-only";
+    const childSelector = opts.childSelector || ".print-spread";
+    const po = document.querySelector(selector);
     if (!po) { if (usedEn) setExportData(null); setBusyKind(""); return; }
 
     const prevStyle = po.getAttribute("style") || "";
     const W = 1980, H = 1400; // 스프레드 29.7:21 (1980/1400 ≈ 1.4143)
     po.setAttribute("style",
       "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:#ffffff;z-index:-1;");
-    const spreadsEls = Array.from(po.querySelectorAll(".print-spread"));
+    const spreadsEls = Array.from(po.querySelectorAll(childSelector));
     const prevSpreadStyles = spreadsEls.map(el => el.getAttribute("style") || "");
     spreadsEls.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;"));
 
@@ -474,29 +485,44 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
       alert("아직 확정되지 않은 본문 스프레드가 있습니다: " + missing.map(n => "#" + String(n).padStart(2, "0")).join(", ") + "\n각 스프레드를 확정한 뒤 다시 시도해주세요.");
       return;
     }
+    // ⚠ 인쇄 사고 방지 — 워크스페이스 본문의 topic과 현재 topic state 일치 검사
+    const bodyTopics = new Set([1, 2, 3, 4, 5].map(i => completed[i] && completed[i].topic).filter(Boolean));
+    if (bodyTopics.size > 1) {
+      alert("⚠ 본문 5개 스프레드의 주제가 서로 다릅니다.\n같은 권에는 동일 주제만 들어가야 합니다.\n복구 탭에서 정리 후 다시 시도해주세요.\n\n발견된 주제: " + Array.from(bodyTopics).join(", "));
+      return;
+    }
+    const bodyTopic = Array.from(bodyTopics)[0];
+    if (bodyTopic && bodyTopic !== topic) {
+      const bodyT = window.TOPICS[bodyTopic];
+      if (!confirm(`⚠ 주제 불일치 경고\n\n· 본문 데이터의 주제: ${bodyT ? bodyT.nameKo : bodyTopic}\n· 작업실 현재 주제: ${T ? T.nameKo : topic}\n\n본문 데이터의 주제(${bodyT ? bodyT.nameKo : bodyTopic})로 PDF를 만듭니다. 계속하시겠습니까?`)) return;
+    }
     const bk = String(bookNo || 1).padStart(3, "0");
     const tname = T ? T.name : "book";
     const tnameKo = T ? T.nameKo : "book";
-    if (!confirm(`📘 ${bookNo}권 최종 확정\n\n4개의 PDF를 make_book/pdf_4ea/ 폴더에 저장합니다.\n  · 한글 PDF\n  · 한글 카드 PDF (좌→우 인터리브 10장)\n  · 영어 PDF\n  · 영어 카드 PDF (좌→우 인터리브 10장)\n\n계속하시겠습니까?`)) return;
+    if (!confirm(`📘 ${bookNo}권 (${tnameKo}) 최종 확정\n\n4개의 PDF를 make_book/pdf_4ea/ 폴더에 저장합니다.\n  · 한글 PDF\n  · 한글 카드 PDF (좌→우 인터리브 10장)\n  · 영어 PDF\n  · 영어 카드 PDF (좌→우 인터리브 10장)\n\n계속하시겠습니까?`)) return;
 
     try {
       setBusyKind("finalize");
-      // 1) KR PDF
+      // 1) KR 본문 PDF — 인쇄용 본문 페이지 디자인(좌 본문카드 / 우 일러스트 1:1 정사각 상단 가득), 자연 책 순서 5장
       await exportPDF("ko", {
         sub: "pdf_4ea",
         filename: `v${bk}_${tnameKo}_한글본문.pdf`,
+        selector: ".print-book-only",
+        childSelector: ".a4-page",
         silent: true
       });
-      // 2) KR 카드 PDF (좌 5장 → 우 5장)
+      // 2) KR 카드 PDF (좌→우 인터리브 10장)
       await exportCardPDF("ko", {
         sub: "pdf_4ea",
         filename: `v${bk}_${tnameKo}_한글카드.pdf`,
         silent: true
       });
-      // 3) EN PDF
+      // 3) EN 본문 PDF — 동일 디자인, 영어
       await exportPDF("en", {
         sub: "pdf_4ea",
         filename: `v${bk}_${tname}_EN_body.pdf`,
+        selector: ".print-book-only",
+        childSelector: ".a4-page",
         silent: true
       });
       // 4) EN 카드 PDF
@@ -528,6 +554,16 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
     { left: 5, right: 6 },                 // 8: 005_a | 006_b
   ];
 
+  // 자연 책 순서 — 본문 PDF용 (한글본·영문본 4ea에서 사용). 표지/내지/오둥이 제외, 본문 5스프레드만.
+  // 임포지션 매핑 X, 1권 본문을 페이지 순서대로 (001_a/002_b → 003_a/004_b → … → 009_a/010_b)
+  const A4_LAYOUT_BOOK = [
+    { left: 1, right: 2 },
+    { left: 3, right: 4 },
+    { left: 5, right: 6 },
+    { left: 7, right: 8 },
+    { left: 9, right: 10 },
+  ];
+
   // A4 인쇄용 PDF — 권별 폴더(pdf_인쇄용/{N}권/)에 임포지션 PDF 저장
   // 본문 페이지: A4 가로 297×210, 중앙 1.5cm 펀칭 여백, 좌·우 141mm 영역에 1:1 정사각 이미지 (141×141mm) 상단 고정
   const exportPrintPDF = async () => {
@@ -542,10 +578,23 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
       alert("아직 확정되지 않은 본문 스프레드가 있습니다: " + missing.map(n => "#" + String(n).padStart(2, "0")).join(", ") + "\n각 스프레드를 확정한 뒤 다시 시도해주세요.");
       return;
     }
+    // ⚠ 인쇄 사고 방지 — 본문 데이터의 topic 통일성 + 현재 topic state 일치 검증
+    const bodyTopicsSet = new Set([1, 2, 3, 4, 5].map(i => completed[i] && completed[i].topic).filter(Boolean));
+    if (bodyTopicsSet.size > 1) {
+      alert("⚠ 본문 5개 스프레드의 주제가 서로 다릅니다.\n같은 권에는 동일 주제만 들어가야 합니다.\n복구 탭에서 정리 후 다시 시도해주세요.\n\n발견된 주제: " + Array.from(bodyTopicsSet).join(", "));
+      return;
+    }
+    const bodyTopicStrict = Array.from(bodyTopicsSet)[0];
+    if (bodyTopicStrict && bodyTopicStrict !== topic) {
+      const bodyT = window.TOPICS[bodyTopicStrict];
+      if (!confirm(`⚠ 주제 불일치 경고\n\n· 본문 데이터의 주제: ${bodyT ? bodyT.nameKo : bodyTopicStrict}\n· 작업실 현재 주제: ${T ? T.nameKo : topic}\n\n본문 데이터의 주제(${bodyT ? bodyT.nameKo : bodyTopicStrict})로 PDF를 만듭니다.\n인쇄 의뢰 전 PDF 내용 반드시 재확인하세요. 계속하시겠습니까?`)) return;
+    }
+
     const jspdfNS = window.jspdf || window.jsPDF;
     const JsPDF = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
     if (!window.html2canvas || !JsPDF) { alert("PDF 라이브러리를 불러오지 못했습니다."); return; }
-    if (!confirm(`🖨 ${bookNo}권 A4 인쇄용 PDF\n\n8장의 A4 가로 임포지션 PDF 2개(한글본·영문본)를\nmake_book/pdf_인쇄용/${bookNo}권/ 폴더에 저장합니다.\n\n  · 1번: 앞내지 (테마 + 카테고리 목차)\n  · 2번: 뒷내지 (명언·구절)\n  · 3번: 오둥이 사진 + 테마 마크\n  · 4~8번: 본문 임포지션 (001_a~010_b)\n\n영문본은 로컬 Ollama 번역(qwen2.5:14b)을 사용합니다. 시간이 좀 걸릴 수 있습니다.\n\n계속하시겠습니까?`)) return;
+    const printTname = T ? T.nameKo : "book";
+    if (!confirm(`🖨 ${bookNo}권 (${printTname}) A4 인쇄용 PDF\n\n8장의 A4 가로 임포지션 PDF 2개(한글본·영문본)를\nmake_book/pdf_인쇄용/${bookNo}권/ 폴더에 저장합니다.\n\n  · 1번: 앞내지 (테마 + 카테고리 목차)\n  · 2번: 뒷내지 (명언·구절)\n  · 3번: 오둥이 사진 + 테마 마크\n  · 4~8번: 본문 임포지션 (001_a~010_b)\n\n영문본은 로컬 Ollama 번역(qwen2.5:14b)을 사용합니다. 시간이 좀 걸릴 수 있습니다.\n\n계속하시겠습니까?`)) return;
 
     setBusyKind("print");
     const po = document.querySelector(".print-impose-only");
@@ -690,6 +739,13 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
     setCompleted({ ...completed, [sp.index]: next });
     setDirty(false);
     setLastSaved(now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " · 확정");
+
+    // 확정 직후 — 이미지/4컷 프롬프트 페이지 자동저장 키 비우기
+    // (다음 스프레드 작업 시 직전 텍스트·선택 옵션이 남아있지 않도록 빈 상태로 리셋)
+    if (window.ArtbookStore) {
+      window.ArtbookStore.set("prompt_draft_image", {});
+      window.ArtbookStore.set("prompt_draft_comic", {});
+    }
 
     if ((location.protocol === "http:" || location.protocol === "https:") && sp.leftMeta.section === "body") {
       const pad = n => String(n).padStart(3, "0");
@@ -933,6 +989,21 @@ function BookPreview({ spreads, completed, setCompleted, topic, coverImg, backIm
                     completed={exportData || completed} oduniImg={oduniImg}
                     lang={exportData ? "en" : "ko"} />
             {/* 중심 재단선 — 옅은 회색 점선 1줄 (CSS .a4-punch::before) */}
+            <div className="a4-punch"></div>
+            <A4Side slot={layout.right} side="right" T={T} topic={topic}
+                    completed={exportData || completed} oduniImg={oduniImg}
+                    lang={exportData ? "en" : "ko"} />
+          </div>
+        ))}
+      </div>
+
+      {/* 1권 최종 확정용 본문 PDF — 자연 책 순서(임포지션 X), A4 본문 페이지 디자인(좌 본문카드 + 우 일러스트) */}
+      <div className="print-book-only">
+        {A4_LAYOUT_BOOK.map((layout, i) => (
+          <div key={"book-" + i} className="a4-page">
+            <A4Side slot={layout.left} side="left" T={T} topic={topic}
+                    completed={exportData || completed} oduniImg={oduniImg}
+                    lang={exportData ? "en" : "ko"} />
             <div className="a4-punch"></div>
             <A4Side slot={layout.right} side="right" T={T} topic={topic}
                     completed={exportData || completed} oduniImg={oduniImg}
@@ -1193,6 +1264,13 @@ function PreviewPage({ page, meta, topic, coverImg, backImg, data, comicSide, si
     const lines0 = source.split("\n");
     const fIdx = lines0.findIndex(l => l.trim().length > 0);
     const titleLine = fIdx >= 0 ? lines0[fIdx] : "";
+    // 카드 title-quote = 사장님이 선택한 quote(있으면 우선) / 없으면 본문 첫 줄
+    const cardTitle = (data?.quote && data.quote.trim()) || titleLine || "";
+    // 카드 본문에 표시할 텍스트 — 첫 줄이 quote와 같으면 제거(중복 방지), 아니면 본문 전체 유지
+    const firstIsQuote = data?.quote && titleLine && titleLine.trim() === data.quote.trim();
+    const bodyForCard = firstIsQuote
+      ? lines0.slice(fIdx + 1).join("\n").replace(/\s+$/, "")
+      : source.replace(/\s+$/, "");
 
     return (
       <div className={"spread-page tpl " + side}>
@@ -1228,7 +1306,7 @@ function PreviewPage({ page, meta, topic, coverImg, backImg, data, comicSide, si
                   </div>
                   <div className="cs-right">
                     <div className="text-title book-title-strong">
-                      <span className="title-quote">“{titleLine || `사유 #${meta.workIdx}`}”</span>
+                      <span className="title-quote">“{cardTitle || `사유 #${meta.workIdx}`}”</span>
                     </div>
                     {editable ? (
                       <AutoFitTextarea
@@ -1237,7 +1315,7 @@ function PreviewPage({ page, meta, topic, coverImg, backImg, data, comicSide, si
                         onExpand={onExpandEdit}
                       />
                     ) : (
-                      <AutoFitBody text={(fIdx >= 0 ? lines0.slice(fIdx + 1).join("\n") : "").replace(/\s+$/, "")} />
+                      <AutoFitBody text={bodyForCard} />
                     )}
                   </div>
                 </div>
@@ -1463,12 +1541,17 @@ function A4Side({ slot, side, T, topic, completed, oduniImg, lang }) {
     const isAside = slot % 2 === 1;
     const pad = String(slot).padStart(3, "0");
 
-    // 본문 텍스트 첫 줄=타이틀, 나머지=본문
+    // 카드 title = 사장님이 선택한 quote(있으면 우선) / 없으면 본문 첫 줄
     const source = d.body || "";
     const lines0 = source.split("\n");
     const fIdx = lines0.findIndex(l => l.trim().length > 0);
     const titleLine = fIdx >= 0 ? lines0[fIdx] : "";
-    const bodyText = (fIdx >= 0 ? lines0.slice(fIdx + 1).join("\n") : "").replace(/\s+$/, "");
+    const cardTitle = (d.quote && d.quote.trim()) || titleLine || `사유 #${workIdx}`;
+    // 첫 줄이 quote와 같으면 제거(중복 방지), 아니면 본문 전체 유지
+    const firstIsQuote = d.quote && titleLine && titleLine.trim() === d.quote.trim();
+    const bodyText = firstIsQuote
+      ? lines0.slice(fIdx + 1).join("\n").replace(/\s+$/, "")
+      : source.replace(/\s+$/, "");
 
     return (
       <div className={"a4-side a4-body a4-" + side} style={{
@@ -1514,7 +1597,7 @@ function A4Side({ slot, side, T, topic, completed, oduniImg, lang }) {
                   </div>
                   <div className="cs-right">
                     <div className="text-title book-title-strong">
-                      <span className="title-quote">"{titleLine || `사유 #${workIdx}`}"</span>
+                      <span className="title-quote">"{cardTitle}"</span>
                     </div>
                     <AutoFitBody text={bodyText} />
                   </div>

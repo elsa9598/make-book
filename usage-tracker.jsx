@@ -5,7 +5,8 @@
 const { useState: useStateUT, useMemo: useMemoUT } = React;
 
 const LEDGER_KEY = "artbook_quote_ledger_v1";
-const BOOKNO_KEY = "artbook_book_no_v1";
+const BOOKNO_KEY = "artbook_book_no_v1";                 // (legacy) 글로벌 단일 권 번호
+const BOOKNO_BY_TOPIC_KEY = "artbook_book_no_by_topic_v1"; // 주제별 권 번호 (2026-05-21~)
 const SERIES_BOOKS = 200;    // 주제별 200권 (1주제 명언 풀 1000개 ÷ 5편 = 200권)
 const WORKS_PER_BOOK = 5;    // 권당 본문 5편 (스프레드 5)
 const TARGET_PER_TOPIC = SERIES_BOOKS * WORKS_PER_BOOK; // 1000 (= 카테고리 10 × 100, 풀 전체 사용)
@@ -17,6 +18,32 @@ function ledgerLoad() {
 function ledgerSave(obj) {
   try { localStorage.setItem(LEDGER_KEY, JSON.stringify(obj)); } catch (e) {}
 }
+// 주제별 권 번호 — { talmud: 1, nietzsche: 1, schopenhauer: 1 }
+function bookNoByTopicLoad() {
+  try {
+    const obj = JSON.parse(localStorage.getItem(BOOKNO_BY_TOPIC_KEY) || "null");
+    if (obj && typeof obj === "object") return obj;
+  } catch (e) {}
+  // 마이그레이션: 기존 단일 BOOKNO_KEY 값을 모든 주제 권으로 복사 (사장님 작업 데이터 보존)
+  const legacy = parseInt(localStorage.getItem(BOOKNO_KEY) || "1", 10);
+  const n = (legacy >= 1 && legacy <= SERIES_BOOKS) ? legacy : 1;
+  return { talmud: n, nietzsche: n, schopenhauer: n };
+}
+function bookNoByTopicSave(obj) {
+  try { localStorage.setItem(BOOKNO_BY_TOPIC_KEY, JSON.stringify(obj || {})); } catch (e) {}
+}
+function bookNoOf(byTopic, topic) {
+  const n = byTopic && byTopic[topic];
+  return (n >= 1 && n <= SERIES_BOOKS) ? n : 1;
+}
+// 워크스페이스 IndexedDB 키 — 주제+권 조합 (`workspace_탈무드_001권`)
+function workspaceKey(topic, bookNo) {
+  const T = window.TOPICS && window.TOPICS[topic];
+  const name = T ? T.nameKo : (topic || "기타");
+  const n = String(bookNo || 1).padStart(3, "0");
+  return `workspace_${name}_${n}권`;
+}
+// (legacy) 단일 권 번호 호환
 function bookNoLoad() {
   const n = parseInt(localStorage.getItem(BOOKNO_KEY) || "1", 10);
   return (n >= 1 && n <= SERIES_BOOKS) ? n : 1;
@@ -64,6 +91,7 @@ window.QuoteLedger = {
   KEY: LEDGER_KEY,
   load: ledgerLoad, save: ledgerSave,
   bookNoLoad, bookNoSave,
+  bookNoByTopicLoad, bookNoByTopicSave, bookNoOf, workspaceKey,
   findUse, register: ledgerRegister, clearSlot: ledgerClearSlot,
   topicUsedCount,
   SERIES_BOOKS, WORKS_PER_BOOK, TARGET_PER_TOPIC
@@ -74,6 +102,34 @@ function QuotePicker(props) {
   const { topic, category, quote, setQuote, ledger, bookNo, currentSpread, completed } = props;
   const [filter, setFilter] = useStateUT("");
   const [onlyUnused, setOnlyUnused] = useStateUT(false);
+  const [copied, setCopied] = useStateUT(false);
+
+  // 챗GPT용 본문 생성 프롬프트를 클립보드에 복사 (사장님이 챗GPT 채팅창에 붙여넣기)
+  const onCopyChatGPTPrompt = async () => {
+    if (!quote.trim()) return;
+    const text = `"${quote.trim()}"
+한국어 20줄 이내, 각 줄은 짧게 (한 문장 한 줄)
+명언을 직접 인용하거나 반복 설명하지 말고,
+이야기로 명언의 진실을 드러낼 것`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed"; ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      console.warn("[copy] 클립보드 복사 실패:", e.message);
+      alert("복사 실패. 콘솔을 확인해주세요.");
+    }
+  };
 
   const pool = (window.QUOTES && window.QUOTES[topic] && window.QUOTES[topic][category]) || [];
 
@@ -174,8 +230,21 @@ function QuotePicker(props) {
           );
         })}
       </div>
-      <div className="qp-foot">
-        선택한 명언이 위 폼박스에 들어갑니다 · <b className="dot-used">📕</b> 표시는 시리즈에서 이미 쓴 구절(중복 방지)
+      <div className="qp-foot" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <span>선택한 명언이 위 폼박스에 들어갑니다 · <b className="dot-used">📕</b> 표시는 시리즈에서 이미 쓴 구절(중복 방지)</span>
+        <button
+          className="btn ghost"
+          disabled={!quote.trim()}
+          onClick={onCopyChatGPTPrompt}
+          title="선택된 명언으로 챗GPT 본문 생성용 프롬프트를 클립보드에 복사"
+          style={{
+            fontSize: 11, padding: "5px 10px", whiteSpace: "nowrap",
+            background: copied ? "#2f5d3a" : undefined,
+            color: copied ? "#f6ecd6" : undefined
+          }}
+        >
+          {copied ? "✓ 복사됨" : "📋 챗GPT용 복사"}
+        </button>
       </div>
     </div>
   );
