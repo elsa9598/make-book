@@ -1379,7 +1379,7 @@ body {
   flex-direction: row !important;
   width: 1980px !important;
   height: 1400px !important;
-  background: var(--paper-page);
+  background: #fff;  /* 크래프트지 인쇄용 — 흰 배경(잉크 안 나가게) */
   page-break-after: always;
   position: relative;
   overflow: hidden;
@@ -1388,7 +1388,7 @@ body {
 .print-impose-only .a4-side,
 .print-book-only .a4-side {
   height: 100% !important;
-  background: var(--paper-page);
+  background: #fff;
   box-sizing: border-box;
   flex-shrink: 0 !important;
   position: relative;
@@ -1403,13 +1403,13 @@ body {
 .print-book-only .a4-punch {
   width: 100px !important;
   height: 100% !important;
-  background: var(--paper-page);
+  background: #fff;
   flex-shrink: 0 !important;
   border: none !important;
   position: relative;
   box-sizing: border-box;
 }
-/* 중심 재단선 — 옅은 회색 점선 1줄 (펀칭 영역 가운데) */
+/* 중심 재단선 — 직접 가위/칼로 자르기 위한 또렷한 실선 1줄 (펀칭 영역 가운데) */
 .print-impose-only .a4-punch::before,
 .print-book-only .a4-punch::before {
   content: "";
@@ -1417,13 +1417,14 @@ body {
   left: 50%;
   top: 0;
   bottom: 0;
-  border-left: 1px dashed rgba(0,0,0,0.22);
+  border-left: 1px solid rgba(0,0,0,0.55);
   transform: translateX(-50%);
 }
 /* A4 본문 페이지의 카드는 영역 940px × 940px 정사각으로 가득 (.card-slot 기본 CSS 덮어쓰기) */
-/* PDF 바탕은 본문 카드와 같은 종이톤으로 통일 */
+/* 크래프트지 인쇄용 — 카드 바탕도 흰색(잉크 절약) */
 .print-impose-only .a4-side.a4-body .card-slot,
-.print-book-only .a4-side.a4-body .card-slot {
+.print-book-only .a4-side.a4-body .card-slot,
+.book-structure-work-image-only .a4-side.a4-body .card-slot {
   position: relative !important;
   top: 0 !important;
   left: 0 !important;
@@ -1435,9 +1436,9 @@ body {
   display: block !important;
   margin: 0 !important;
   box-sizing: border-box !important;
-  background: var(--paper-page) !important;
+  background: #fff !important;
 }
-/* 카드 내부와 하단 메모 여백도 같은 종이톤 */
+/* 카드 내부와 하단 메모 여백도 흰색 */
 .print-impose-only .a4-side.a4-body .card-slot .card-inner,
 .print-impose-only .a4-side.a4-body .card-slot .card-cat,
 .print-impose-only .a4-side.a4-body .card-slot .card-split,
@@ -1449,8 +1450,14 @@ body {
 .print-book-only .a4-side.a4-body .card-slot .card-split,
 .print-book-only .a4-side.a4-body .card-slot .cs-left,
 .print-book-only .a4-side.a4-body .card-slot .cs-right,
-.print-book-only .a4-side.a4-body .card-slot .card-body {
-  background: var(--paper-page) !important;
+.print-book-only .a4-side.a4-body .card-slot .card-body,
+.book-structure-work-image-only .a4-side.a4-body .card-slot .card-inner,
+.book-structure-work-image-only .a4-side.a4-body .card-slot .card-cat,
+.book-structure-work-image-only .a4-side.a4-body .card-slot .card-split,
+.book-structure-work-image-only .a4-side.a4-body .card-slot .cs-left,
+.book-structure-work-image-only .a4-side.a4-body .card-slot .cs-right,
+.book-structure-work-image-only .a4-side.a4-body .card-slot .card-body {
+  background: #fff !important;
 }
 /* A4 본문 페이지 컨테이너 — 상단 940 정사각 + 하단 460 필기 여백 */
 .print-impose-only .a4-side.a4-body,
@@ -1478,6 +1485,28 @@ body {
   height: 940px !important;
   object-fit: cover !important;
   display: block !important;
+}
+
+/* 카드 PDF·작업본문 이미지(.print-only) — 크래프트지 인쇄용 흰 배경(잉크 절약) */
+.print-only .spread-page,
+.print-only .card-slot,
+.print-only .card-slot .card-inner,
+.print-only .card-slot .card-cat,
+.print-only .card-slot .card-split,
+.print-only .card-slot .cs-right,
+.print-only .card-slot .card-body {
+  background: #fff !important;
+}
+/* 4컷 이미지·일러스트의 contain 여백 배경도 흰색으로 (기본 var(--paper-page) 아이보리 덮어쓰기) */
+.print-impose-only .card-slot .card-split .cs-left img,
+.print-book-only .card-slot .card-split .cs-left img,
+.print-only .card-slot .card-split .cs-left img,
+.book-structure-work-image-only .card-slot .card-split .cs-left img,
+.print-impose-only .card-slot .card-body .card-illust,
+.print-book-only .card-slot .card-body .card-illust,
+.print-only .card-slot .card-body .card-illust,
+.book-structure-work-image-only .card-slot .card-body .card-illust {
+  background: #fff !important;
 }
 
 @media print {

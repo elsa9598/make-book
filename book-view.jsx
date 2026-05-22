@@ -4,7 +4,7 @@ const { useState: useStateBV, useRef: useRefBV } = React;
 
 /* ────────── 자동 폰트 축소 ────────── */
 // 한 페이지에 맞도록 폰트 크기를 줄여서 fit
-function AutoFitBody({ text, maxFontSize = 30, minFontSize = 16 }) {
+function AutoFitBody({ text, maxFontSize = 60, minFontSize = 12 }) {
   const wrapRef = useRefBV();
   const innerRef = useRefBV();
   const [fontSize, setFontSize] = useStateBV(maxFontSize);
@@ -17,7 +17,7 @@ function AutoFitBody({ text, maxFontSize = 30, minFontSize = 16 }) {
       if (!wrap || !inner || wrap.clientHeight < 8) return; // 숨김 상태(0높이) 측정 방지
       let fs = maxFontSize;
       inner.style.fontSize = fs + "px";
-      let guard = 90;
+      let guard = 200; // maxFontSize(60)→minFontSize(12) 전 구간 커버
       while (inner.scrollHeight > wrap.clientHeight && fs > minFontSize && guard-- > 0) {
         fs -= 0.5;
         inner.style.fontSize = fs + "px";
@@ -104,19 +104,21 @@ function AutoFitTextarea({ value, onChange, onExpand, maxFontSize = 30, minFontS
   );
 }
 
+// 인쇄용 임포지션 — 8 스프레드 (사장님 지정 배치, 2026-05-22)
+// p.15 명언·구절(back-inner) / p.16 오둥이 사진(oduni-photo) / 공백 p.2·p.14에 페이지번호 표시
 const BOOKLET_IMPOSITION = [
-  { sheet: 1, left: { folio: 16, label: "명언", slot: "back-inner" }, right: { folio: 1, label: "앞내지", slot: "front-inner" } },
-  { sheet: 2, left: { folio: 15, label: "오둥이 사진", slot: "oduni-photo" }, right: { folio: 2, label: "공백", slot: null } },
-  { sheet: 3, left: { folio: 14, label: "공백", slot: null }, right: { folio: 3, label: "목차", slot: "contents" } },
-  { sheet: 4, left: { folio: 13, label: "010_b", slot: 10 }, right: { folio: 4, label: "001_a", slot: 1 } },
-  { sheet: 5, left: { folio: 12, label: "009_a", slot: 9 }, right: { folio: 5, label: "002_b", slot: 2 } },
-  { sheet: 6, left: { folio: 11, label: "008_b", slot: 8 }, right: { folio: 6, label: "003_a", slot: 3 } },
-  { sheet: 7, left: { folio: 10, label: "007_a", slot: 7 }, right: { folio: 7, label: "004_b", slot: 4 } },
-  { sheet: 8, left: { folio: 9, label: "006_b", slot: 6 }, right: { folio: 8, label: "005_a", slot: 5 } },
+  { sheet: 1, left: { folio: 1, label: "철학종", slot: "front-inner" }, right: { folio: 4, label: "001_a", slot: 1 } },
+  { sheet: 2, left: { folio: 3, label: "목차", slot: "contents" }, right: { folio: 2, label: "공백", slot: null } },
+  { sheet: 3, left: { folio: 6, label: "003_a", slot: 3 }, right: { folio: 8, label: "005_a", slot: 5 } },
+  { sheet: 4, left: { folio: 7, label: "004_b", slot: 4 }, right: { folio: 5, label: "002_b", slot: 2 } },
+  { sheet: 5, left: { folio: 10, label: "007_a", slot: 7 }, right: { folio: 11, label: "008_b", slot: 8 } },
+  { sheet: 6, left: { folio: 12, label: "009_a", slot: 9 }, right: { folio: 9, label: "006_b", slot: 6 } },
+  { sheet: 7, left: { folio: 13, label: "010_b", slot: 10 }, right: { folio: 16, label: "명언·구절", slot: "back-inner" } },
+  { sheet: 8, left: { folio: 14, label: "공백", slot: null }, right: { folio: 15, label: "오둥이 사진", slot: "oduni-photo" } },
 ];
 
 const BOOKLET_IMPOSITION_LABELS = BOOKLET_IMPOSITION
-  .map(row => `${row.left.folio} ${row.left.label} | ${row.right.folio} ${row.right.label}`);
+  .map(row => `${row.left.folio || "—"} ${row.left.label} | ${row.right.folio || "—"} ${row.right.label}`);
 
 const BOOKLET_READING_SPREADS = [
   { left: { folio: null, slot: null }, right: { folio: 1, slot: "front-inner" } },
@@ -130,7 +132,8 @@ const BOOKLET_READING_SPREADS = [
   { left: { folio: 16, slot: "back-inner" }, right: { folio: null, slot: null } },
 ];
 
-const PDF_PAPER = "#f6ecd6";
+const PDF_PAPER = "#f6ecd6";          // 화면 미리보기용 종이톤
+const PRINT_PAPER = "#ffffff";        // 인쇄 산출물용 흰색 — 크래프트지에 잉크 안 나가게(낭비 방지)
 
 const HANGUL_RE = /[ㄱ-ㅎㅏ-ㅣ가-힣]/;
 function hasHangul(text) {
@@ -293,7 +296,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
 
       const prevStyle = po.getAttribute("style") || "";
       const W = 1980, H = 1400;
-      po.setAttribute("style", "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PDF_PAPER + ";z-index:-1;");
+      po.setAttribute("style", "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PRINT_PAPER + ";z-index:-1;");
       const pages = Array.from(po.querySelectorAll(".a4-page"));
       if (pages.length !== BOOKLET_IMPOSITION.length) {
         po.setAttribute("style", prevStyle);
@@ -312,7 +315,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       const doc = new JsPDF({ orientation: "landscape", unit: "px", format: [W, H] });
       for (let i = 0; i < pages.length; i++) {
         const canvas = await window.html2canvas(pages[i], {
-          scale: 2, useCORS: true, backgroundColor: PDF_PAPER,
+          scale: 2, useCORS: true, backgroundColor: PRINT_PAPER,
           width: W, height: H, windowWidth: W, windowHeight: H
         });
         const img = canvas.toDataURL("image/jpeg", 0.92);
@@ -395,10 +398,10 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       if (!po) return;
       const prevStyle = po.getAttribute("style") || "";
       const W = 1980, H = 1400;
-      po.setAttribute("style", "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PDF_PAPER + ";z-index:-1;");
+      po.setAttribute("style", "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PRINT_PAPER + ";z-index:-1;");
       const pages = Array.from(po.querySelectorAll(".a4-page"));
       const prevPageStyles = pages.map(el => el.getAttribute("style") || "");
-      pages.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;display:flex;flex-direction:row;background:" + PDF_PAPER + ";"));
+      pages.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;display:flex;flex-direction:row;background:" + PRINT_PAPER + ";"));
       if (document.fonts && document.fonts.ready) {
         try { await document.fonts.ready; } catch (e) {}
       }
@@ -406,7 +409,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       const canvases = [];
       for (let i = 0; i < pages.length; i++) {
         canvases.push(await window.html2canvas(pages[i], {
-          scale: 1, useCORS: true, backgroundColor: PDF_PAPER,
+          scale: 1, useCORS: true, backgroundColor: PRINT_PAPER,
           width: W, height: H, windowWidth: W, windowHeight: H
         }));
       }
@@ -414,7 +417,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       out.width = W;
       out.height = H * canvases.length;
       const ctx2d = out.getContext("2d");
-      ctx2d.fillStyle = PDF_PAPER;
+      ctx2d.fillStyle = PRINT_PAPER;
       ctx2d.fillRect(0, 0, out.width, out.height);
       canvases.forEach((c, i) => ctx2d.drawImage(c, 0, H * i, W, H));
 
@@ -480,11 +483,11 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       <div style={{gridColumn: "span 2", display: "flex", alignItems: "center", padding: "12px 16px"}}>
         <div className="hint">
           표지는 스케치처럼 펼침 기준 좌측이 뒷표지, 우측이 앞표지입니다.
-          본문 인쇄물은 별도 4장/16페이지로 구성됩니다.
+          본문 인쇄물은 별도 8 스프레드(16페이지)로 구성됩니다.
         </div>
       </div>
 
-      <SectionHeader title="인쇄 구조" subtitle="4 sheets · 16 pages" />
+      <SectionHeader title="인쇄 구조" subtitle="8 spreads · 16 pages" />
       <BookletMap
         completed={completed}
         T={T}
@@ -540,16 +543,16 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       <div className="print-impose-only book-structure-print-only">
         {BOOKLET_IMPOSITION.map((layout, i) => (
           <div key={"book-structure-a4-" + i} className="a4-page" style={{
-            display: "flex", flexDirection: "row", background: PDF_PAPER,
+            display: "flex", flexDirection: "row", background: PRINT_PAPER,
             position: "relative", overflow: "hidden"
           }}>
             <A4Side slot={layout.left.slot} folio={layout.left.folio} side="left" T={T} topic={topic}
                     completed={printExportData || completed} oduniImg={oduniImg}
-                    lang={printLang} />
+                    lang={printLang} paper={PRINT_PAPER} />
             <div className="a4-punch"></div>
             <A4Side slot={layout.right.slot} folio={layout.right.folio} side="right" T={T} topic={topic}
                     completed={printExportData || completed} oduniImg={oduniImg}
-                    lang={printLang} />
+                    lang={printLang} paper={PRINT_PAPER} />
           </div>
         ))}
       </div>
@@ -559,13 +562,13 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
           {BOOKLET_READING_SPREADS.slice(2, 7).map((layout, i) => (
             <div key={"work-img-" + i} className="a4-page">
               <A4Side slot={layout.left.slot} folio={layout.left.folio} side="left" T={T} topic={bookTopic}
-                      completed={printExportData || completed} oduniImg={oduniImg} lang={printLang} />
+                      completed={printExportData || completed} oduniImg={oduniImg} lang={printLang} paper={PRINT_PAPER} />
               <div className="a4-punch" style={{
                 width: 100, height: "100%", flexShrink: 0, position: "relative",
-                background: "linear-gradient(to right, " + PDF_PAPER + " calc(50% - 0.5px), rgba(0,0,0,0.22) 50%, " + PDF_PAPER + " calc(50% + 0.5px))"
+                background: "linear-gradient(to right, " + PRINT_PAPER + " calc(50% - 0.5px), rgba(0,0,0,0.22) 50%, " + PRINT_PAPER + " calc(50% + 0.5px))"
               }}></div>
               <A4Side slot={layout.right.slot} folio={layout.right.folio} side="right" T={T} topic={bookTopic}
-                      completed={printExportData || completed} oduniImg={oduniImg} lang={printLang} />
+                      completed={printExportData || completed} oduniImg={oduniImg} lang={printLang} paper={PRINT_PAPER} />
             </div>
           ))}
         </div>
@@ -929,7 +932,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     const prevStyle = po.getAttribute("style") || "";
     const W = 1980, H = 1400; // 스프레드 29.7:21 (1980/1400 ≈ 1.4143)
     po.setAttribute("style",
-      "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PDF_PAPER + ";z-index:-1;");
+      "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PRINT_PAPER + ";z-index:-1;");
     const spreadsEls = Array.from(po.querySelectorAll(childSelector));
     const prevSpreadStyles = spreadsEls.map(el => el.getAttribute("style") || "");
     spreadsEls.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;"));
@@ -942,7 +945,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
       const doc = new JsPDF({ orientation: "landscape", unit: "px", format: [W, H] });
       for (let i = 0; i < spreadsEls.length; i++) {
         const canvas = await window.html2canvas(spreadsEls[i], {
-          scale: 2, useCORS: true, backgroundColor: PDF_PAPER,
+          scale: 2, useCORS: true, backgroundColor: PRINT_PAPER,
           width: W, height: H, windowWidth: W, windowHeight: H
         });
         const img = canvas.toDataURL("image/jpeg", 0.92);
@@ -1024,7 +1027,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     const prevStyle = po.getAttribute("style") || "";
     const W = 1980, H = 1400;
     po.setAttribute("style",
-      "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PDF_PAPER + ";z-index:-1;");
+      "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PRINT_PAPER + ";z-index:-1;");
     const spreadsEls = Array.from(po.querySelectorAll(".print-spread"));
     const prevSpreadStyles = spreadsEls.map(el => el.getAttribute("style") || "");
     spreadsEls.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;"));
@@ -1052,7 +1055,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
       const doc = new JsPDF({ orientation: "portrait", unit: "px", format: [S, S] });
       for (let i = 0; i < cards.length; i++) {
         const canvas = await window.html2canvas(cards[i], {
-          scale: 2, useCORS: true, backgroundColor: PDF_PAPER
+          scale: 2, useCORS: true, backgroundColor: PRINT_PAPER
         });
         const img = canvas.toDataURL("image/jpeg", 0.95);
         if (i > 0) doc.addPage([S, S], "portrait");
@@ -1100,7 +1103,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     if (!po) { unmountExportDom(); setBusyKind(""); return; }
     const prevStyle = po.getAttribute("style") || "";
     const W = 1980, H = 1400;
-    po.setAttribute("style", "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PDF_PAPER + ";z-index:-1;");
+    po.setAttribute("style", "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PRINT_PAPER + ";z-index:-1;");
     const spreadsEls = Array.from(po.querySelectorAll(".print-spread")).filter((_, idx) => idx >= 1);
     const prevSpreadStyles = spreadsEls.map(el => el.getAttribute("style") || "");
     spreadsEls.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;"));
@@ -1111,7 +1114,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
       const canvases = [];
       for (let i = 0; i < spreadsEls.length; i++) {
         canvases.push(await window.html2canvas(spreadsEls[i], {
-          scale: 1, useCORS: true, backgroundColor: PDF_PAPER,
+          scale: 1, useCORS: true, backgroundColor: PRINT_PAPER,
           width: W, height: H, windowWidth: W, windowHeight: H
         }));
       }
@@ -1119,7 +1122,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
       out.width = W;
       out.height = H * canvases.length;
       const ctx = out.getContext("2d");
-      ctx.fillStyle = PDF_PAPER;
+      ctx.fillStyle = PRINT_PAPER;
       ctx.fillRect(0, 0, out.width, out.height);
       canvases.forEach((c, i) => ctx.drawImage(c, 0, H * i, W, H));
       const b64 = out.toDataURL("image/png").split(",")[1];
@@ -1215,8 +1218,8 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     }
   };
 
-  // A4 인쇄용 임포지션 매핑 — 스케치 기준 4장/16페이지.
-  // 물리 페이지: 1 앞내지 / 2 공백 / 3 목차 / 4~13 본문 001_a~010_b / 14 공백 / 15 오둥이 / 16 명언.
+  // A4 인쇄용 임포지션 매핑 — 8 스프레드 (사장님 지정 배치, 2026-05-22).
+  // 페이지번호: 1 철학종 / 2·14 공백 / 3 목차 / 4~13 본문 001_a~010_b / 16 명언 / 15 오둥이.
   const A4_LAYOUT = BOOKLET_IMPOSITION;
 
   // 자연 책 넘김 순서 — 미리보기/PDF용. p.1 단독 → p.2|3 → ... → p.16 단독.
@@ -1252,7 +1255,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     const JsPDF = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
     if (!window.html2canvas || !JsPDF) { alert("PDF 라이브러리를 불러오지 못했습니다."); return; }
     const printTname = T ? T.nameKo : "book";
-    if (!opts.silent && !confirm(`🖨 ${bookNo}권 (${printTname}) A4 인쇄용 PDF\n\n4장/16페이지 구조의 A4 가로 임포지션 PDF 2개(한글본·영문본)를\npages/${topicLabel}/${bookLabel}/pdf/ 폴더에 저장합니다.\n\n  · p.1 앞내지 / p.2 공백 / p.3 목차\n  · p.4–13 본문 카드 001_a–010_b\n  · p.14 공백 / p.15 오둥이 사진 / p.16 명언\n\n영문본은 로컬 Ollama 번역(qwen2.5:14b)을 사용합니다. 시간이 좀 걸릴 수 있습니다.\n\n계속하시겠습니까?`)) return;
+    if (!opts.silent && !confirm(`🖨 ${bookNo}권 (${printTname}) A4 인쇄용 PDF\n\n8 스프레드 임포지션 PDF 2개(한글본·영문본)를\npages/${topicLabel}/${bookLabel}/pdf/ 폴더에 저장합니다.\n\n  · 사장님 지정 8면 배치 (철학종·목차·오둥이·명언 + 본문 10카드)\n\n바탕은 흰색(크래프트지 잉크 절약)으로 출력됩니다.\n영문본은 로컬 Ollama 번역(qwen2.5:14b)을 사용합니다. 시간이 좀 걸릴 수 있습니다.\n\n계속하시겠습니까?`)) return;
 
     setBusyKind("print");
     await mountExportDom("impose");
@@ -1261,7 +1264,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     const prevStyle = po.getAttribute("style") || "";
     // A4 가로 297×210mm → 1980×1400 픽셀 (비율 동일, 1mm ≈ 6.66px)
     const W = 1980, H = 1400;
-    po.setAttribute("style", "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PDF_PAPER + ";z-index:-1;");
+    po.setAttribute("style", "display:block;position:fixed;left:-99999px;top:0;width:" + W + "px;background:" + PRINT_PAPER + ";z-index:-1;");
     const pages = Array.from(po.querySelectorAll(".a4-page"));
     if (pages.length !== A4_LAYOUT.length) {
       alert(
@@ -1277,14 +1280,14 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     const prevPageStyles = pages.map(el => el.getAttribute("style") || "");
     pages.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;"));
 
-    // 4장 양면 = 8개 인쇄면을 캡처해서 한 PDF로 만드는 헬퍼
+    // 9 스프레드를 캡처해서 한 PDF로 만드는 헬퍼
     const capturePagesToPdf = async () => {
       if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
       await new Promise(r => setTimeout(r, 250));
       const doc = new JsPDF({ orientation: "landscape", unit: "px", format: [W, H] });
       for (let i = 0; i < pages.length; i++) {
         const canvas = await window.html2canvas(pages[i], {
-          scale: 2, useCORS: true, backgroundColor: PDF_PAPER,
+          scale: 2, useCORS: true, backgroundColor: PRINT_PAPER,
           width: W, height: H, windowWidth: W, windowHeight: H
         });
         const img = canvas.toDataURL("image/jpeg", 0.92);
@@ -1699,17 +1702,17 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
       {exportDom === "impose" && <div className="print-impose-only">
         {A4_LAYOUT.map((layout, i) => (
           <div key={"a4-" + i} className="a4-page" style={{
-            display: "flex", flexDirection: "row", background: PDF_PAPER,
+            display: "flex", flexDirection: "row", background: PRINT_PAPER,
             position: "relative", overflow: "hidden"
           }}>
             <A4Side slot={layout.left.slot} folio={layout.left.folio} side="left" T={T} topic={topic}
                     completed={exportData || printCompleted} oduniImg={oduniImg}
-                    lang={exportData ? "en" : "ko"} />
+                    lang={exportData ? "en" : "ko"} paper={PRINT_PAPER} />
             {/* 중심 재단선 — 옅은 회색 점선 1줄 (CSS .a4-punch::before) */}
             <div className="a4-punch"></div>
             <A4Side slot={layout.right.slot} folio={layout.right.folio} side="right" T={T} topic={topic}
                     completed={exportData || printCompleted} oduniImg={oduniImg}
-                    lang={exportData ? "en" : "ko"} />
+                    lang={exportData ? "en" : "ko"} paper={PRINT_PAPER} />
           </div>
         ))}
       </div>}
@@ -1720,11 +1723,11 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
           <div key={"book-" + i} className="a4-page">
             <A4Side slot={layout.left.slot} folio={layout.left.folio} side="left" T={T} topic={topic}
                     completed={exportData || printCompleted} oduniImg={oduniImg}
-                    lang={exportData ? "en" : "ko"} />
+                    lang={exportData ? "en" : "ko"} paper={PRINT_PAPER} />
             <div className="a4-punch"></div>
             <A4Side slot={layout.right.slot} folio={layout.right.folio} side="right" T={T} topic={topic}
                     completed={exportData || printCompleted} oduniImg={oduniImg}
-                    lang={exportData ? "en" : "ko"} />
+                    lang={exportData ? "en" : "ko"} paper={PRINT_PAPER} />
           </div>
         ))}
       </div>}
@@ -2074,13 +2077,14 @@ function PreviewPage({ page, meta, topic, coverImg, backImg, data, comicSide, si
 // 슬롯 타입: null(공백) / "front-inner"(앞내지) / "contents"(목차) / "back-inner"(명언) / "oduni-photo"(오둥이) / 페이지번호(본문 카드)
 // 본문 페이지: 상단 1:1 정사각 이미지(141×141mm), 아래 69mm 필기 여백
 // ─────────────────────────────────────────────────────────────────────────
-function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAutoFit, fixedBodyFontSize }) {
+function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAutoFit, fixedBodyFontSize, paper }) {
   const isEn = lang === "en";
+  const PAPER = paper || PDF_PAPER; // 인쇄 호출부는 PRINT_PAPER(흰색) 전달, 미리보기는 종이톤
   // 영어 모드일 때 d.topicLabel / d.catLabel은 buildEnCompleted가 미리 채워둠
   const baseStyle = {
     width: "940px",
     height: "1400px",
-    background: PDF_PAPER,
+    background: PAPER,
     position: "relative",
     flexShrink: 0,
     boxSizing: "border-box"
@@ -2099,8 +2103,9 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
       bottom: "20px",
       left: 0, right: 0,
       textAlign: "center",
-      fontSize: "13px",
-      color: "rgba(74,36,21,0.55)",
+      fontSize: "26px",
+      fontWeight: 700,
+      color: "rgba(74,36,21,0.95)",
       letterSpacing: "0.3em",
       fontFamily: "var(--font-serif, serif)"
     }}>– {folio} –</div>
@@ -2173,8 +2178,8 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
           <span style={{ fontSize: "28px", color: "var(--topic-accent, #8b7355)" }}>⚜</span>
         </div>
         <div style={{
-          display: "flex", flexDirection: "column", gap: "14px",
-          fontFamily: "var(--font-serif, serif)", fontSize: "20px",
+          display: "flex", flexDirection: "column", gap: "18px",
+          fontFamily: "var(--font-serif, serif)", fontSize: "24px",
           color: "var(--ink, #2b1d13)"
         }}>
           {[1, 2, 3, 4, 5].map(i => {
@@ -2220,8 +2225,8 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
           <span style={{ fontSize: "26px", color: "var(--topic-accent, #8b7355)" }}>❦</span>
         </div>
         <div style={{
-          display: "flex", flexDirection: "column", gap: "20px",
-          fontFamily: "var(--font-serif, serif)", fontSize: "16px",
+          display: "flex", flexDirection: "column", gap: "24px",
+          fontFamily: "var(--font-serif, serif)", fontSize: "24px",
           color: "var(--ink, #2b1d13)", lineHeight: 1.55
         }}>
           {[1, 2, 3, 4, 5].map(i => {
@@ -2408,15 +2413,16 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
         <div style={{
           flex: 1,
           position: "relative",
-          background: PDF_PAPER
+          background: PAPER
         }}>
           <div style={{
             position: "absolute",
             bottom: "20px",
             left: 0, right: 0,
             textAlign: "center",
-            fontSize: "13px",
-            color: "rgba(74,36,21,0.55)",
+            fontSize: "26px",
+            fontWeight: 700,
+            color: "rgba(74,36,21,0.95)",
             letterSpacing: "0.3em",
             fontFamily: "var(--font-serif, serif)"
           }}>– {folio || slot} –</div>
