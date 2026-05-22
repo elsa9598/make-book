@@ -103,16 +103,11 @@ function QuotePicker(props) {
   const [filter, setFilter] = useStateUT("");
   const [onlyUnused, setOnlyUnused] = useStateUT(false);
   const [copied, setCopied] = useStateUT(false);
+  const [copiedComic, setCopiedComic] = useStateUT(false);
+  const [copiedImg, setCopiedImg] = useStateUT(false);
 
-  // 챗GPT용 본문 생성 프롬프트를 클립보드에 복사 (사장님이 챗GPT 채팅창에 붙여넣기)
-  const onCopyChatGPTPrompt = async () => {
-    if (!quote.trim()) return;
-    const hero = heroName || "오둥이";
-    const text = `주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
-"${quote.trim()}"
-한국어 20줄 이내, 각 줄은 짧게 (한 문장 한 줄)
-명언을 직접 인용하거나 반복 설명하지 말고,
-이야기로 명언의 진실을 드러낼 것`;
+  // 클립보드 복사 공통 헬퍼 (navigator.clipboard + execCommand 폴백)
+  const copyToClipboard = async (text, setFlag) => {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
@@ -125,12 +120,44 @@ function QuotePicker(props) {
         document.execCommand("copy");
         document.body.removeChild(ta);
       }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setFlag(true);
+      setTimeout(() => setFlag(false), 2000);
     } catch (e) {
       console.warn("[copy] 클립보드 복사 실패:", e.message);
       alert("복사 실패. 콘솔을 확인해주세요.");
     }
+  };
+
+  // 챗GPT용 본문 생성 프롬프트를 클립보드에 복사 (사장님이 챗GPT 채팅창에 붙여넣기)
+  const onCopyChatGPTPrompt = async () => {
+    if (!quote.trim()) return;
+    const hero = heroName || "오둥이";
+    const text = `주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
+"${quote.trim()}"
+한국어 20줄 이내, 각 줄은 짧게 (한 문장 한 줄)
+명언을 직접 인용하거나 반복 설명하지 말고,
+이야기로 명언의 진실을 드러낼 것`;
+    await copyToClipboard(text, setCopied);
+  };
+
+  // 4컷만화용 프롬프트를 클립보드에 복사
+  const onCopyComicPrompt = async () => {
+    if (!quote.trim()) return;
+    const hero = heroName || "오둥이";
+    const text = `주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
+"${quote.trim()}"
+4컷만화 발단-전개-위기-결말로 스토리를 만들어줘`;
+    await copyToClipboard(text, setCopiedComic);
+  };
+
+  // 이미지 생성용 프롬프트를 클립보드에 복사
+  const onCopyImagePrompt = async () => {
+    if (!quote.trim()) return;
+    const hero = heroName || "오둥이";
+    const text = `주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
+"${quote.trim()}"
+구체적인 배경, 시간대, 빛의 표현, 상세한 카메라뷰와 구도, 얕은 심도(포커싱, 아웃포커싱 확실히 구분)로 구성한 스토리 만들어줘`;
+    await copyToClipboard(text, setCopiedImg);
   };
 
   const pool = (window.QUOTES && window.QUOTES[topic] && window.QUOTES[topic][category]) || [];
@@ -238,14 +265,40 @@ function QuotePicker(props) {
           className="btn ghost"
           disabled={!quote.trim()}
           onClick={onCopyChatGPTPrompt}
-          title="선택된 명언으로 챗GPT 본문 생성용 프롬프트를 클립보드에 복사"
+          title="선택된 명언으로 본문(20줄) 생성용 프롬프트를 클립보드에 복사"
           style={{
             fontSize: 11, padding: "5px 10px", whiteSpace: "nowrap",
             background: copied ? "#2f5d3a" : undefined,
             color: copied ? "#f6ecd6" : undefined
           }}
         >
-          {copied ? "✓ 복사됨" : "📋 챗GPT용 복사"}
+          {copied ? "✓ 복사됨" : "📝 본문작성"}
+        </button>
+        <button
+          className="btn ghost"
+          disabled={!quote.trim()}
+          onClick={onCopyComicPrompt}
+          title="선택된 명언으로 4컷만화(발단-전개-위기-결말) 스토리 프롬프트를 클립보드에 복사"
+          style={{
+            fontSize: 11, padding: "5px 10px", whiteSpace: "nowrap",
+            background: copiedComic ? "#2f5d3a" : undefined,
+            color: copiedComic ? "#f6ecd6" : undefined
+          }}
+        >
+          {copiedComic ? "✓ 복사됨" : "🎞 4컷만화용 복사"}
+        </button>
+        <button
+          className="btn ghost"
+          disabled={!quote.trim()}
+          onClick={onCopyImagePrompt}
+          title="선택된 명언으로 이미지 생성용 프롬프트(시네마풍 수채화)를 클립보드에 복사"
+          style={{
+            fontSize: 11, padding: "5px 10px", whiteSpace: "nowrap",
+            background: copiedImg ? "#2f5d3a" : undefined,
+            color: copiedImg ? "#f6ecd6" : undefined
+          }}
+        >
+          {copiedImg ? "✓ 복사됨" : "🖼 이미지용 복사"}
         </button>
       </div>
     </div>

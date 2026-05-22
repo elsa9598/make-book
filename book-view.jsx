@@ -104,21 +104,59 @@ function AutoFitTextarea({ value, onChange, onExpand, maxFontSize = 30, minFontS
   );
 }
 
-// 인쇄용 임포지션 — 8 스프레드 (사장님 지정 배치, 2026-05-22)
-// p.15 명언·구절(back-inner) / p.16 오둥이 사진(oduni-photo) / 공백 p.2·p.14에 페이지번호 표시
-const BOOKLET_IMPOSITION = [
-  { sheet: 1, left: { folio: 1, label: "철학종", slot: "front-inner" }, right: { folio: 4, label: "001_a", slot: 1 } },
-  { sheet: 2, left: { folio: 3, label: "목차", slot: "contents" }, right: { folio: 2, label: "공백", slot: null } },
-  { sheet: 3, left: { folio: 6, label: "003_a", slot: 3 }, right: { folio: 8, label: "005_a", slot: 5 } },
-  { sheet: 4, left: { folio: 7, label: "004_b", slot: 4 }, right: { folio: 5, label: "002_b", slot: 2 } },
-  { sheet: 5, left: { folio: 10, label: "007_a", slot: 7 }, right: { folio: 11, label: "008_b", slot: 8 } },
-  { sheet: 6, left: { folio: 12, label: "009_a", slot: 9 }, right: { folio: 9, label: "006_b", slot: 6 } },
-  { sheet: 7, left: { folio: 13, label: "010_b", slot: 10 }, right: { folio: 16, label: "명언·구절", slot: "back-inner" } },
-  { sheet: 8, left: { folio: 14, label: "공백", slot: null }, right: { folio: 15, label: "오둥이 사진", slot: "oduni-photo" } },
+// 인쇄용 임포지션 — 본문 10장 양면 (사장님 미니북, 2026-05-22)
+// 낱장: 앞면=본문 카드 / 뒷면=목차·줄공책·명언. A4 가로 2up 양면 인쇄.
+// 뒷면은 '상하 뒤집기' 보정으로 캡처 시 180° 회전(목차·명언 똑바로 / 줄공책은 대칭이라 무관).
+// 표지(철학종)·오둥이는 250g 별도 인쇄 → 이 임포지션에서 제외.
+const LEAFLETS_BODY = [
+  { front: 1,  back: "lined-note" },   // 001_a / 줄
+  { front: 2,  back: "contents" },     // 002_b / 목차
+  { front: 3,  back: "lined-note" },   // 003_a / 줄
+  { front: 4,  back: "lined-note" },   // 004_b / 줄
+  { front: 5,  back: "lined-note" },   // 005_a / 줄
+  { front: 6,  back: "lined-note" },   // 006_b / 줄
+  { front: 7,  back: "lined-note" },   // 007_a / 줄
+  { front: 8,  back: "lined-note" },   // 008_b / 줄
+  { front: 9,  back: "lined-note" },   // 009_a / 줄
+  { front: 10, back: "back-inner" },   // 010_b / 명언
 ];
 
+function labelOfSlot(slot) {
+  if (slot === "lined-note") return "줄공책";
+  if (slot === "contents") return "목차";
+  if (slot === "back-inner") return "명언·구절";
+  if (typeof slot === "number") return String(slot).padStart(3, "0") + (slot % 2 ? "_a" : "_b");
+  return "";
+}
+
+const BOOKLET_IMPOSITION = (() => {
+  const EMPTY = { front: null, back: null };
+  const pages = [];
+  for (let i = 0; i < LEAFLETS_BODY.length; i += 2) {
+    const a = LEAFLETS_BODY[i];
+    const b = LEAFLETS_BODY[i + 1] || EMPTY;
+    const n = pages.length / 2 + 1;
+    // 앞면 (좌 a / 우 b)
+    pages.push({ sheet: "A" + n + " 앞", face: "front",
+      left:  { folio: null, label: labelOfSlot(a.front), slot: a.front },
+      right: { folio: null, label: labelOfSlot(b.front), slot: b.front } });
+    // 뒷면 (좌 a / 우 b). 단, 명언(back-inner) 있는 스프레드는 좌우 반전 (사장님 지정).
+    const swapBack = (a.back === "back-inner" || b.back === "back-inner");
+    const bl = swapBack ? b.back : a.back;
+    const br = swapBack ? a.back : b.back;
+    pages.push({ sheet: "A" + n + " 뒤", face: "back",
+      left:  { folio: null, label: labelOfSlot(bl), slot: bl },
+      right: { folio: null, label: labelOfSlot(br), slot: br } });
+  }
+  // 줄공책 1장(맨 끝) — 사장님이 이 페이지만 프린터에서 여러 장 인쇄해 작품 사이 4장씩 끼움
+  pages.push({ sheet: "줄공책", face: "front",
+    left:  { folio: null, label: "줄공책", slot: "lined-note" },
+    right: { folio: null, label: "줄공책", slot: "lined-note" } });
+  return pages;
+})();
+
 const BOOKLET_IMPOSITION_LABELS = BOOKLET_IMPOSITION
-  .map(row => `${row.left.folio || "—"} ${row.left.label} | ${row.right.folio || "—"} ${row.right.label}`);
+  .map(row => `${row.sheet}: ${row.left.label || "—"} | ${row.right.label || "—"}`);
 
 const BOOKLET_READING_SPREADS = [
   { left: { folio: null, slot: null }, right: { folio: 1, slot: "front-inner" } },
@@ -483,11 +521,11 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       <div style={{gridColumn: "span 2", display: "flex", alignItems: "center", padding: "12px 16px"}}>
         <div className="hint">
           표지는 스케치처럼 펼침 기준 좌측이 뒷표지, 우측이 앞표지입니다.
-          본문 인쇄물은 별도 8 스프레드(16페이지)로 구성됩니다.
+          본문 10장 양면(앞=본문 / 뒤=목차·줄·명언) + 줄공책 1장. 표지(철학종)는 250g 별도.
         </div>
       </div>
 
-      <SectionHeader title="인쇄 구조" subtitle="8 spreads · 16 pages" />
+      <SectionHeader title="인쇄 구조" subtitle="본문 10장 양면 + 줄공책 1장" />
       <BookletMap
         completed={completed}
         T={T}
@@ -1074,7 +1112,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
           const b64 = doc.output("datauristring").split(",")[1];
           const r = await fetch(location.origin + "/save-pdf", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...saveMeta, filename: fname, data: b64, sub: opts.sub || (EN ? "card_pdf_en" : "card_pdf") })
+            body: JSON.stringify({ ...saveMeta, filename: fname, data: b64, sub: opts.sub != null ? opts.sub : (EN ? "card_pdf_en" : "card_pdf") })
           });
           const j = await r.json();
           if (j && j.ok) { saved2 = true; if (!opts.silent) alert("카드 PDF 저장 완료 (" + cards.length + "장)\n" + j.path); }
@@ -1218,8 +1256,8 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     }
   };
 
-  // A4 인쇄용 임포지션 매핑 — 8 스프레드 (사장님 지정 배치, 2026-05-22).
-  // 페이지번호: 1 철학종 / 2·14 공백 / 3 목차 / 4~13 본문 001_a~010_b / 16 명언 / 15 오둥이.
+  // A4 인쇄용 임포지션 매핑 — 본문 10장 양면(앞 본문/뒤 목차·줄·명언) + 줄공책 1장 (2026-05-22).
+  // 뒷면(data-face=back)은 캡처 시 180° 회전으로 상하 반전 보정. 줄공책 맨끝 1장은 사장님이 여러 장 인쇄.
   const A4_LAYOUT = BOOKLET_IMPOSITION;
 
   // 자연 책 넘김 순서 — 미리보기/PDF용. p.1 단독 → p.2|3 → ... → p.16 단독.
@@ -1255,7 +1293,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     const JsPDF = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
     if (!window.html2canvas || !JsPDF) { alert("PDF 라이브러리를 불러오지 못했습니다."); return; }
     const printTname = T ? T.nameKo : "book";
-    if (!opts.silent && !confirm(`🖨 ${bookNo}권 (${printTname}) A4 인쇄용 PDF\n\n8 스프레드 임포지션 PDF 2개(한글본·영문본)를\npages/${topicLabel}/${bookLabel}/pdf/ 폴더에 저장합니다.\n\n  · 사장님 지정 8면 배치 (철학종·목차·오둥이·명언 + 본문 10카드)\n\n바탕은 흰색(크래프트지 잉크 절약)으로 출력됩니다.\n영문본은 로컬 Ollama 번역(qwen2.5:14b)을 사용합니다. 시간이 좀 걸릴 수 있습니다.\n\n계속하시겠습니까?`)) return;
+    if (!opts.silent && !confirm(`🖨 ${bookNo}권 (${printTname}) A4 양면 인쇄용 PDF\n\n본문 10장 양면 임포지션 PDF 2개(한글본·영문본)를\npages/${topicLabel}/${bookLabel}/pdf/ 폴더에 저장합니다.\n\n  · 앞면 = 본문 카드 / 뒷면 = 목차·줄공책·명언\n  · A4 가로 양면 → 가운데 재단 → 낱장 스프링\n  · 뒷면(목차·명언)은 상하 반전 보정으로 180° 회전돼 있음\n\n⚠ A4 1장만 먼저 테스트 인쇄해 앞뒤가 맞는지 꼭 확인하세요.\n표지(철학종)·줄공책은 별도로 인쇄합니다.\n\n계속하시겠습니까?`)) return;
 
     setBusyKind("print");
     await mountExportDom("impose");
@@ -1280,16 +1318,27 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     const prevPageStyles = pages.map(el => el.getAttribute("style") || "");
     pages.forEach(el => el.setAttribute("style", "width:" + W + "px;height:" + H + "px;overflow:hidden;"));
 
-    // 9 스프레드를 캡처해서 한 PDF로 만드는 헬퍼
+    // 임포지션 전 면(본문 앞면/뒷면)을 캡처해서 한 PDF로 만드는 헬퍼
+    // 뒷면(data-face="back")은 상하 뒤집기 보정으로 캡처 캔버스를 180° 회전한다.
+    const rotate180 = (canvas) => {
+      const rc = document.createElement("canvas");
+      rc.width = canvas.width; rc.height = canvas.height;
+      const c = rc.getContext("2d");
+      c.translate(rc.width, rc.height);
+      c.rotate(Math.PI);
+      c.drawImage(canvas, 0, 0);
+      return rc;
+    };
     const capturePagesToPdf = async () => {
       if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
       await new Promise(r => setTimeout(r, 250));
       const doc = new JsPDF({ orientation: "landscape", unit: "px", format: [W, H] });
       for (let i = 0; i < pages.length; i++) {
-        const canvas = await window.html2canvas(pages[i], {
+        let canvas = await window.html2canvas(pages[i], {
           scale: 2, useCORS: true, backgroundColor: PRINT_PAPER,
           width: W, height: H, windowWidth: W, windowHeight: H
         });
+        if (pages[i].getAttribute("data-face") === "back") canvas = rotate180(canvas);
         const img = canvas.toDataURL("image/jpeg", 0.92);
         if (i > 0) doc.addPage([W, H], "landscape");
         doc.addImage(img, "JPEG", 0, 0, W, H);
@@ -1637,6 +1686,27 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
           {busyKind === "pdf-en" ? "영문 PDF 생성 중…"
             : (busyKind.startsWith && busyKind.startsWith("번역") ? busyKind : "영문 PDF 만들기")}
         </button>
+
+        {/* 카드 PDF (10cm 정사각 10장) — pages/<주제>/<권>/pdf/ 직접 저장 */}
+        <button
+          className="btn pdf-btn"
+          onClick={() => exportCardPDF("ko", { sub: "" })}
+          disabled={!!busyKind}
+          title="카드 PDF 한글 (10cm 카드 10장) → pages/<주제>/<권>/pdf/"
+        >
+          {busyKind === "card" ? "한글 카드 생성 중…" : "한글 카드 PDF"}
+        </button>
+        <button
+          className="btn pdf-btn"
+          style={{ background: "#2f3a4d" }}
+          onClick={() => exportCardPDF("en", { sub: "" })}
+          disabled={!!busyKind}
+          title="카드 PDF 영문 — 로컬 번역(한→영) · pages/<주제>/<권>/pdf/"
+        >
+          {busyKind === "card-en" ? "영문 카드 생성 중…"
+            : (busyKind.startsWith && busyKind.startsWith("번역") ? busyKind : "영문 카드 PDF")}
+        </button>
+
         <button
           className="btn pdf-btn ghost"
           onClick={exportPrintPDF}
@@ -1701,7 +1771,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
       {/* A4 인쇄용 임포지션 — PDF 생성 때만 렌더 */}
       {exportDom === "impose" && <div className="print-impose-only">
         {A4_LAYOUT.map((layout, i) => (
-          <div key={"a4-" + i} className="a4-page" style={{
+          <div key={"a4-" + i} className="a4-page" data-face={layout.face || "front"} style={{
             display: "flex", flexDirection: "row", background: PRINT_PAPER,
             position: "relative", overflow: "hidden"
           }}>
@@ -2097,13 +2167,13 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
     overflow: "hidden",
     flexShrink: 0
   };
-  const FolioMark = () => folio ? (
+  const FolioMark = ({ size = 26 } = {}) => folio ? (
     <div style={{
       position: "absolute",
       bottom: "20px",
       left: 0, right: 0,
       textAlign: "center",
-      fontSize: "26px",
+      fontSize: size + "px",
       fontWeight: 700,
       color: "rgba(74,36,21,0.95)",
       letterSpacing: "0.3em",
@@ -2237,8 +2307,8 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
             return (
               <div key={i}>
                 <div style={{
-                  fontSize: "11px", letterSpacing: "0.15em",
-                  color: "var(--ink-muted, #8a7560)", marginBottom: "4px"
+                  fontSize: "22px", letterSpacing: "0.15em",
+                  color: "var(--ink-muted, #8a7560)", marginBottom: "6px"
                 }}>{pa} · {categoryLabel(d)}</div>
                 <div style={{ fontStyle: "italic" }}>"{q}"</div>
               </div>
@@ -2313,6 +2383,23 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
           </div>
         )}
         <FolioMark />
+      </div>
+    );
+  }
+
+  // 줄노트 — 20줄 가로줄 (글·그림 겸용, 웜브라운 톤온톤 연한 줄, 페이지번호 없음)
+  if (slot === "lined-note") {
+    const LINES = 20;
+    const lineColor = "rgba(124,94,60,0.30)"; // 웜브라운 톤온톤 — 연하게(그림 방해 최소)
+    return (
+      <div className={"a4-side a4-lined-note a4-" + side} style={{
+        ...baseStyle,
+        padding: "9% 9%",
+        display: "flex", flexDirection: "column", justifyContent: "space-between"
+      }}>
+        {Array.from({ length: LINES }).map((_, i) => (
+          <div key={i} style={{ borderBottom: "1.5px solid " + lineColor, width: "100%" }} />
+        ))}
       </div>
     );
   }

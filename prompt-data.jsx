@@ -191,7 +191,7 @@ const ART_STYLES = [
     id: "watercolor",
     ko: "수채화",
     label: "Watercolor",
-    en: "soft watercolor wash with natural pigment bleeds, gentle gradient boundaries, transparent overlapping layers, organic flowing brushwork, paper-grain visible"
+    en: "wet-on-wet watercolor where color edges bleed naturally, pigment spreading on pre-wetted paper, color-mass expression rather than fine detail, bleeds and bokeh used together, semi-abstract treatment that melts away some outlines, light reflections treated like watercolor stains, emphasized paper grain, transparent color layers glazed multiple times, very limited focal area, out-of-focus subjects melted into color masses without holding their form, light bleeding into circular bokeh, distant backgrounds with detail removed, expressed like boundary-dissolved watercolor blots"
   },
   {
     id: "cinematic-wc",
