@@ -3,27 +3,27 @@
 
 const CHARACTERS = [
   {
-    id: "sangchu", ko: "상추", en: "Sangchu",
+    id: "sangchu", ko: "상추멍", en: "Old English Sheepdog protagonist",
     species: "🐶",
     desc: "Old English Sheepdog, large and sturdy 35kg heavy-set breed, entire head and both ears must be 100% pure solid white without any gray markings, white fluffy chest and white front legs, dark charcoal gray fur starting strictly from the shoulders and covering the back and hindquarters, very cute big round gentle puppy eyes with heterochromia: one soft brown eye and one soft blue eye, sparkling kind expression, rounded fluffy muzzle, large soft body, thick shaggy fur texture, the tail is entirely solid dark charcoal gray, very short and stubby, absolutely no white color at the tip, gentle loyal protector personality."
   },
   {
-    id: "yeolmu", ko: "열무", en: "Yeolmu",
+    id: "yeolmu", ko: "열무멍", en: "Papillon dog protagonist",
     species: "🐶",
     desc: "Papillon dog, small and dainty 5kg toy breed, brown and white fur pattern, very large butterfly-shaped ears with long brown ear fur and soft feathered edges, warm brown round expressive eyes, white blaze running down the center of the face, white muzzle, white chest and belly, brown patches on the face and body, fluffy curled tail with white and brown fur, elegant tiny body, gentle cheerful expression, cute refined cartoon style."
   },
   {
-    id: "baechu", ko: "배추", en: "Baechu",
+    id: "baechu", ko: "배추멍", en: "American Cocker Spaniel protagonist",
     species: "🐶",
     desc: "American Cocker Spaniel, medium-sized 15kg dog, golden beige and cream silky wavy fur, long floppy ears with thick flowing wavy curls, large warm gentle brown eyes, small rounded brown-black nose, sweet innocent smiling expression, fluffy cream chest fur, rounded forehead, soft golden tan coloring throughout the body, short soft tail, plush cute cartoon proportions, warm friendly personality."
   },
   {
-    id: "ggami", ko: "까미", en: "Ggami",
+    id: "kkami", ko: "까미냥", en: "gray tuxedo cat protagonist",
     species: "🐱",
     desc: "Gray tuxedo cat, dark charcoal gray body with white chest and white belly, round face with dark charcoal gray mask pattern over the head and around the eyes, white muzzle area, distinctive thick black mustache marking above the mouth, sharp yellow amber half-lidded eyes with intense tsundere gaze, small pink heart-shaped nose, pink inner ears, pink heart-shaped paw pads, compact muscular body, long dark gray tail, grumpy exterior but secretly caring personality, bold clean cartoon line style."
   },
   {
-    id: "gimchi", ko: "김치", en: "Gimchi",
+    id: "kimchi", ko: "김치냥", en: "white Scottish Fold cat protagonist",
     species: "🐱",
     desc: "Scottish Fold cat, all white fluffy coat, distinctive folded flat ears pressed close to a very round chubby head, sharp yellow amber half-lidded eyes with perpetually grumpy stern expression, small pink heart-shaped nose, tiny freckles near the nose, short whisker lines, plump round chubby body, short stubby legs, soft rounded paws, thick fluffy tail, always looks displeased and unimpressed, minimalist clean cartoon style."
   },

@@ -104,10 +104,20 @@ function CharacterCard({ char, selected, onToggle }) {
   );
 }
 
+function promptCharacterById(id) {
+  const alias = { ggami: "kkami", gimchi: "kimchi" };
+  const target = alias[id] || id;
+  return window.CHARACTERS.find(c => c.id === target);
+}
+
+function promptCharacterLine(c, role = "protagonist") {
+  return `• ${role}: ${c.en}: ${c.desc}`;
+}
+
 /* ────────── 출력 프롬프트 빌더 ────────── */
 function buildImagePrompt(s) {
   const lines = [];
-  const charsBy = (id) => window.CHARACTERS.find(c => c.id === id);
+  const charsBy = promptCharacterById;
 
   // 이미지 위 글자 일체 금지 (자동·최우선 포함)
   lines.push(`[IMAGE RULES]\n${window.IMAGE_RULES}`);
@@ -123,7 +133,7 @@ function buildImagePrompt(s) {
     lines.push("[CHARACTERS — maintain perfect appearance consistency]");
     s.chars.forEach(id => {
       const c = charsBy(id);
-      if (c) lines.push(`• ${c.en} (${c.ko}): ${c.desc}`);
+      if (c) lines.push(promptCharacterLine(c));
     });
     if (s.customChars.trim()) lines.push(`• Additional: ${s.customChars.trim()}`);
   }
@@ -177,7 +187,7 @@ function buildImagePrompt(s) {
 function buildComicPrompt(s) {
   // 이미지 프롬프트 빌더와 거의 동일 + 4컷 규칙 추가
   const lines = [];
-  const charsBy = (id) => window.CHARACTERS.find(c => c.id === id);
+  const charsBy = promptCharacterById;
 
   // 4컷 고정 규칙
   lines.push(`[4-PANEL COMIC RULES]\n${window.COMIC_RULES}`);
@@ -187,7 +197,7 @@ function buildComicPrompt(s) {
     lines.push("[CHARACTERS — perfect consistency across all four panels]");
     s.chars.forEach(id => {
       const c = charsBy(id);
-      if (c) lines.push(`• ${c.en} (${c.ko}): ${c.desc}`);
+      if (c) lines.push(promptCharacterLine(c));
     });
     if (s.customChars.trim()) lines.push(`• Additional: ${s.customChars.trim()}`);
   }
@@ -213,7 +223,7 @@ function buildComicPrompt(s) {
 /* ────────── 메인 페이지 컴포넌트 ────────── */
 function PromptGeneratorPage({ mode, ctx, onBack }) {
   // 공통 선택 상태
-  const [chars, setChars] = useStatePG([]);
+  const [chars, setChars] = useStatePG(() => ctx?.heroCharacter ? [ctx.heroCharacter] : []);
   const [customChars, setCustomChars] = useStatePG("");
   const [backgrounds, setBackgrounds] = useStatePG([]);
   const [customBg, setCustomBg] = useStatePG("");
@@ -234,9 +244,19 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
   const [ratio, setRatio] = useStatePG(mode === "comic" ? "9:16" : "1:1");
 
   const [copied, setCopied] = useStatePG(false);
+  const oduniIds = ["sangchu", "baechu", "yeolmu", "kkami", "kimchi"];
+  const promptCharacters = oduniIds
+    .map(id => window.CHARACTERS.find(c => c.id === id))
+    .filter(Boolean);
 
   const toggleArr = (arr, setArr) => (v) =>
     arr.includes(v) ? setArr(arr.filter(x => x !== v)) : setArr([...arr, v]);
+  const selectHeroChar = (id) => {
+    setChars(prev => [id, ...prev
+      .map(x => ({ ggami: "kkami", gimchi: "kimchi" }[x] || x))
+      .filter(x => !oduniIds.includes(x))
+    ]);
+  };
 
   // 본문 → 본문 전체를 영어 프롬프트에 반영 (최대 1500자)
   // 단, 본문 첫 줄이 quote와 같으면(=명언 중복) 그 줄만 제거. 다르면 본문 전체 그대로.
@@ -257,6 +277,16 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
     ctx: { ...ctx, bodySnippet }
   };
 
+  useEffectPG(() => {
+    const hero = ctx?.heroCharacter;
+    if (!hero) return;
+    setChars(prev => {
+      const normalized = prev.map(id => ({ ggami: "kkami", gimchi: "kimchi" }[id] || id));
+      const withoutOtherOduni = normalized.filter(id => !["sangchu", "baechu", "yeolmu", "kkami", "kimchi"].includes(id));
+      return [hero, ...withoutOtherOduni];
+    });
+  }, [ctx?.heroCharacter, mode]);
+
   const prompt = useMemoPG(() => {
     return mode === "comic" ? buildComicPrompt(builderState) : buildImagePrompt(builderState);
   }, [builderState, mode]);
@@ -266,11 +296,14 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
   const pgHydrated = useRefPG(false);
   const pgTimer = useRefPG(null);
 
-  const hasWork = () =>
-    chars.length || backgrounds.length || times.length || moods.length ||
-    weathers.length || lightings.length || cameras.length ||
-    customChars || customBg || customTime || customMood || customWeather ||
-    customLighting || customCamera || focusSubject || outFocus || focusPreset;
+  const hasWork = () => {
+    const normalized = chars.map(id => ({ ggami: "kkami", gimchi: "kimchi" }[id] || id));
+    const heroOnly = normalized.length === 1 && normalized[0] === ctx?.heroCharacter;
+    return (!heroOnly && normalized.length) || backgrounds.length || times.length || moods.length ||
+      weathers.length || lightings.length || cameras.length ||
+      customChars || customBg || customTime || customMood || customWeather ||
+      customLighting || customCamera || focusSubject || outFocus || focusPreset;
+  };
 
   // 마운트 시 복원
   useEffectPG(() => {
@@ -279,7 +312,14 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
       if (!window.ArtbookStore) { pgHydrated.current = true; return; }
       const s = await window.ArtbookStore.get(DKEY);
       if (alive && s && typeof s === "object") {
-        s.chars && setChars(s.chars);
+        if (s.chars) {
+          const normalized = s.chars.map(id => ({ ggami: "kkami", gimchi: "kimchi" }[id] || id));
+          const hero = ctx?.heroCharacter;
+          setChars(hero
+            ? [hero, ...normalized.filter(id => !oduniIds.includes(id))]
+            : normalized
+          );
+        }
         s.customChars && setCustomChars(s.customChars);
         s.backgrounds && setBackgrounds(s.backgrounds);
         s.customBg && setCustomBg(s.customBg);
@@ -379,15 +419,15 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
         <div className="pg-config">
           <PromptSection
             title="캐릭터"
-            subtitle="복수 선택 · 외모 일관성이 유지됩니다"
+            subtitle="오둥이 주인공 선택 · 최종 영어 프롬프트에 바로 반영됩니다"
           >
             <div className="char-grid">
-              {window.CHARACTERS.map(c => (
+              {promptCharacters.map(c => (
                 <CharacterCard
                   key={c.id}
                   char={c}
                   selected={chars.includes(c.id)}
-                  onToggle={() => toggleArr(chars, setChars)(c.id)}
+                  onToggle={() => selectHeroChar(c.id)}
                 />
               ))}
             </div>

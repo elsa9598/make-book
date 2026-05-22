@@ -106,7 +106,7 @@ body {
 }
 .brand-mark {
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 44px;
   font-weight: 500;
   letter-spacing: 0.02em;
   color: var(--ink);
@@ -295,6 +295,33 @@ body {
   height: 3px;
   margin: 8px -10px -12px;
   background: var(--topic-color, var(--ink-muted));
+}
+
+/* 오둥이 주인공 선택 */
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.hero-card {
+  min-height: 36px;
+  padding: 8px 4px;
+  border: 1px solid var(--rule);
+  background: var(--paper-page);
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-style: italic;
+  cursor: pointer;
+}
+.hero-card:hover {
+  background: #fff8e2;
+  border-color: var(--ink-soft);
+}
+.hero-card.active {
+  background: var(--ink);
+  color: var(--paper-page);
+  border-color: var(--ink);
 }
 
 /* 카테고리 chip */
@@ -983,6 +1010,63 @@ body {
   display: flex;
   justify-content: space-between;
 }
+.spread-cell.body-linked {
+  position: relative;
+}
+.spread-cell.body-linked .body-preview-thumb {
+  gap: 6px;
+  padding: 8px 6px;
+  overflow: hidden;
+  background: var(--paper-page);
+}
+.spread-cell.body-linked.empty .body-preview-thumb {
+  background: linear-gradient(180deg, var(--paper-warm), var(--paper-page-edge));
+}
+.body-page-preview {
+  width: 84px;
+  height: 126px;
+  overflow: hidden;
+  background: var(--paper-page);
+  box-shadow: 0 1px 4px rgba(74,36,21,0.16);
+  pointer-events: none;
+}
+.body-page-preview-inner {
+  width: 940px;
+  height: 1400px;
+  transform: scale(0.08936);
+  transform-origin: top left;
+}
+.body-empty-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(246,236,214,0.62);
+  color: var(--ink-faint);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 11px;
+  pointer-events: none;
+}
+.cell-edit-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 28px;
+  z-index: 2;
+  border: 1px solid rgba(74,36,21,0.2);
+  background: rgba(246,236,214,0.92);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  padding: 4px 7px;
+  cursor: pointer;
+}
+.cell-edit-btn:hover {
+  background: var(--ink);
+  color: var(--paper-page);
+}
 .spread-cell.section-cover { grid-column: span 2; }
 .spread-cell.section-back { grid-column: span 2; }
 
@@ -1009,6 +1093,84 @@ body {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--ink-muted);
+}
+
+.booklet-map {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 0 0 8px;
+}
+.booklet-sheet {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--rule-soft);
+  background: rgba(255,248,230,0.35);
+}
+.booklet-page-cell {
+  border: 1px solid var(--rule);
+  background: var(--paper-page);
+  padding: 8px;
+  min-height: 196px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  overflow: hidden;
+}
+.booklet-page-cell:hover {
+  border-color: var(--ink-soft);
+  box-shadow: inset 0 0 0 1px rgba(74,36,21,0.18);
+}
+.booklet-page-cell.is-blank {
+  background: rgba(246,236,214,0.58);
+}
+.booklet-page-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-ui);
+}
+.booklet-page-head strong {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.booklet-page-head span {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--ink-muted);
+  letter-spacing: 0.08em;
+}
+.booklet-page-preview {
+  width: 94px;
+  height: 140px;
+  overflow: hidden;
+  background: var(--paper-page);
+  box-shadow: 0 1px 4px rgba(74,36,21,0.16);
+  pointer-events: none;
+}
+.booklet-page-preview-inner {
+  width: 940px;
+  height: 1400px;
+  transform: scale(0.1);
+  transform-origin: top left;
+}
+.booklet-sheet-label {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--rule-soft);
+  padding: 5px 8px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--ink-muted);
+  text-align: center;
 }
 
 /* 표지/뒷표지 첨부 영역 */
@@ -1122,6 +1284,47 @@ body {
   font-style: italic;
   color: var(--ink-soft);
   font-size: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.preview-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  background: rgba(246, 236, 214, 0.72);
+  border: 1px solid var(--rule);
+}
+.preview-zoom .zoom-btn,
+.preview-zoom .zoom-readout {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(74,36,21,0.18);
+  background: var(--paper-page);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.preview-zoom .zoom-btn {
+  font-size: 15px;
+  font-weight: 700;
+}
+.preview-zoom .zoom-btn.wide {
+  min-width: 62px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.preview-zoom .zoom-readout {
+  min-width: 48px;
+  color: var(--ink-muted);
+}
+.preview-zoom .zoom-btn:hover,
+.preview-zoom .zoom-readout:hover {
+  background: var(--ink);
+  color: var(--paper-page);
 }
 .preview-nav .nav-arrow {
   width: 40px; height: 40px;
@@ -1176,7 +1379,7 @@ body {
   flex-direction: row !important;
   width: 1980px !important;
   height: 1400px !important;
-  background: #ffffff;
+  background: var(--paper-page);
   page-break-after: always;
   position: relative;
   overflow: hidden;
@@ -1185,7 +1388,7 @@ body {
 .print-impose-only .a4-side,
 .print-book-only .a4-side {
   height: 100% !important;
-  background: #ffffff;
+  background: var(--paper-page);
   box-sizing: border-box;
   flex-shrink: 0 !important;
   position: relative;
@@ -1200,7 +1403,7 @@ body {
 .print-book-only .a4-punch {
   width: 100px !important;
   height: 100% !important;
-  background: #ffffff;
+  background: var(--paper-page);
   flex-shrink: 0 !important;
   border: none !important;
   position: relative;
@@ -1218,7 +1421,7 @@ body {
   transform: translateX(-50%);
 }
 /* A4 본문 페이지의 카드는 영역 940px × 940px 정사각으로 가득 (.card-slot 기본 CSS 덮어쓰기) */
-/* 크래프트지에 인쇄하므로 배경은 화이트로 강제 (기본 종이톤 paper-warm 적용 안 함) */
+/* PDF 바탕은 본문 카드와 같은 종이톤으로 통일 */
 .print-impose-only .a4-side.a4-body .card-slot,
 .print-book-only .a4-side.a4-body .card-slot {
   position: relative !important;
@@ -1232,9 +1435,9 @@ body {
   display: block !important;
   margin: 0 !important;
   box-sizing: border-box !important;
-  background: #ffffff !important;
+  background: var(--paper-page) !important;
 }
-/* 카드 내부의 종이톤 배경(card-inner, card-split, cs-left, cs-right 등)도 모두 화이트로 강제 */
+/* 카드 내부와 하단 메모 여백도 같은 종이톤 */
 .print-impose-only .a4-side.a4-body .card-slot .card-inner,
 .print-impose-only .a4-side.a4-body .card-slot .card-cat,
 .print-impose-only .a4-side.a4-body .card-slot .card-split,
@@ -1247,7 +1450,7 @@ body {
 .print-book-only .a4-side.a4-body .card-slot .cs-left,
 .print-book-only .a4-side.a4-body .card-slot .cs-right,
 .print-book-only .a4-side.a4-body .card-slot .card-body {
-  background: #ffffff !important;
+  background: var(--paper-page) !important;
 }
 /* A4 본문 페이지 컨테이너 — 상단 940 정사각 + 하단 460 필기 여백 */
 .print-impose-only .a4-side.a4-body,
@@ -1262,6 +1465,12 @@ body {
   width: 940px !important;
   height: 940px !important;
   flex-shrink: 0 !important;
+}
+.book-spread.pv-fixed .a4-side.a4-body .a4-card-square,
+.book-spread.pv-fixed .a4-side.a4-body .card-slot,
+.book-spread.pv-fixed .a4-side.a4-body .a4-card-square > img {
+  width: 940px !important;
+  height: 940px !important;
 }
 .print-impose-only .a4-side.a4-body > div:first-child > img,
 .print-book-only .a4-side.a4-body > div:first-child > img {
@@ -1283,7 +1492,7 @@ body {
     color-adjust: exact !important;
   }
   body {
-    background: white !important;
+    background: var(--paper-page) !important;
   }
   body * { visibility: hidden; }
   .print-only, .print-only * { visibility: visible; }
@@ -1808,7 +2017,7 @@ input[type="file"] { display: none; }
   border: 1px solid var(--rule);
   background: var(--paper-warm);
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 22px;
   line-height: 1.85;
   color: var(--ink);
   padding: 16px 18px;
@@ -2122,6 +2331,14 @@ input[type="file"] { display: none; }
   white-space: pre-wrap;
   word-break: keep-all;
 }
+.card-slot .cs-right .text-body.no-autofit {
+  font-size: 18px !important;
+  overflow: hidden;
+}
+.card-slot .cs-right .text-body.fixed-body-size {
+  font-size: var(--fixed-body-font-size, 50px) !important;
+  overflow: hidden;
+}
 .card-slot .cs-right .text-body-wrap { flex: 1; min-height: 0; }
 
 /* ── 카드 상단 카테고리 + 우측 타이틀 키우기 ── */
@@ -2141,12 +2358,12 @@ input[type="file"] { display: none; }
 .card-slot .card-cat .orn      { font-size: 15px !important; }
 
 /* ── 미리보기를 PDF와 동일 비율로: 글자를 카드 폭에 비례(컨테이너 단위) ──
-   PDF 카드폭 ≈ 666px 기준: 타이틀16→2.4cqi, 카테고리19.2→2.88cqi 등 */
+   PDF 카드폭 ≈ 666px 기준에서 전체 1.3배: 타이틀20.8→3.12cqi, 카테고리24.96→3.744cqi 등 */
 .card-slot { container-type: inline-size; }
-.card-slot .card-cat .cc-topic { font-size: 2.88cqi !important; }
-.card-slot .card-cat .cc-cat   { font-size: 2.25cqi !important; }
-.card-slot .card-cat .orn      { font-size: 2.25cqi !important; }
-.card-slot .cs-right .text-title.book-title-strong { font-size: 2.4cqi !important; }
+.card-slot .card-cat .cc-topic { font-size: 3.744cqi !important; }
+.card-slot .card-cat .cc-cat   { font-size: 2.925cqi !important; }
+.card-slot .card-cat .orn      { font-size: 2.925cqi !important; }
+.card-slot .cs-right .text-title.book-title-strong { font-size: 3.12cqi !important; }
 .card-slot .cs-right .text-title.book-title-strong .title-quote { font-size: inherit !important; }
 
 /* 미리보기: PDF와 동일 1980×1400 렌더 후 화면 폭에 맞춰 축소 (픽셀 동일) */
@@ -2180,4 +2397,20 @@ input[type="file"] { display: none; }
 .card-slot .card-body .card-illust {
   object-fit: contain !important;
   background: var(--paper-page) !important;
+}
+
+/* A4 본문 페이지 기준: 좌측 카툰+글 카드와 우측 이미지 블록은 항상 같은 940×940 정사각 */
+.a4-side.a4-body .a4-card-square,
+.a4-side.a4-body .a4-card-square > .card-slot,
+.a4-side.a4-body .a4-card-square > img {
+  width: 940px !important;
+  height: 940px !important;
+  aspect-ratio: 1 / 1 !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+}
+.a4-side.a4-body .a4-card-square > .card-slot {
+  position: absolute !important;
+  inset: 0 !important;
+  margin: 0 !important;
 }

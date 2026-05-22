@@ -68,11 +68,12 @@ function buildMockFiles() {
 
 const MOCK_FILES = buildMockFiles();
 
-/* 책 구조 — 노출 제본 빈 템플릿 아트북 (2026-05-20 재조정)
-   · 스프레드 0    : 표지 스프레드 (겉표지 + 뒷표지)
-   · 스프레드 1~5  : 본문 5편 (각 스프레드 = 2페이지 = 카드 2장)
-   · 페이지 번호    : 본문만 001~010, 좌측=홀수(_a), 우측=짝수(_b)
-   · 프롤로그/챕터/에필로그 없음. 총 6 스프레드, 카드 10장.
+/* 책 구조 — 표지 별도 + 본문 4장/16페이지 인쇄 구조 (2026-05-21)
+   · 표지          : 바깥 표지 1장, 펼침 기준 좌=뒤 / 우=앞
+   · 본문 인쇄물   : 4장 양면 = 16페이지
+   · 001_a~010_b   : 실제 작업 본문 5편의 카드 10장, 물리 페이지 4~13에 배치
+   · 특수 페이지   : 1 앞내지 / 2 공백 / 3 목차 / 14 공백 / 15 오둥이 / 16 명언
+   · 작업실 단위   : 기존처럼 본문 5편(각 2카드)만 편집한다.
 */
 function getPageMeta(p) {
   if (p >= 1 && p <= 10) {
@@ -84,13 +85,13 @@ function getPageMeta(p) {
 
 function buildSpreads() {
   const spreads = [];
-  // 스프레드 0 — 표지 (겉표지 / 뒷표지)
+  // 스프레드 0 — 표지 (펼침 기준: 뒤표지 / 앞표지)
   spreads.push({
     index: 0,
     leftPage: 0,
     rightPage: 0,
-    leftMeta: { section: "cover", label: "겉표지" },
-    rightMeta: { section: "back", label: "뒷표지" }
+    leftMeta: { section: "back", label: "뒷표지" },
+    rightMeta: { section: "cover", label: "앞표지" }
   });
   // 스프레드 1~5 — 본문
   for (let i = 1; i <= 5; i++) {
@@ -142,6 +143,8 @@ Object.assign(window, {
   panelArt,
   sectionLabel: (s) => ({
     cover: "표지",
+    frontInner: "앞내지",
+    contents: "목차",
     prologue: "프롤로그",
     chapter: "챕터 표제",
     body: "본문",

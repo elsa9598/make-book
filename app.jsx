@@ -8,10 +8,19 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "showStitching": true
 }/*EDITMODE-END*/;
 
+const ODUNI_CHARACTERS = [
+  { id: "sangchu", name: "상추멍" },
+  { id: "baechu", name: "배추멍" },
+  { id: "yeolmu", name: "열무멍" },
+  { id: "kkami", name: "까미냥" },
+  { id: "kimchi", name: "김치냥" }
+];
+
 function App() {
   const [topic, setTopic] = useStateApp("talmud");
   const [category, setCategory] = useStateApp("지혜");
   const [quote, setQuote] = useStateApp("한 사람을 구하는 것은 온 세계를 구하는 것이다.");
+  const [heroCharacter, setHeroCharacter] = useStateApp("sangchu");
 
   // 작업 중인 스프레드 인덱스 (본문 = 1~5 = 5편)
   const [currentSpread, setCurrentSpread] = useStateApp(1); // 첫 본문 스프레드 (001_a/002_b)
@@ -30,6 +39,7 @@ function App() {
       if (data.topic) setTopic(data.topic);
       if (data.category) setCategory(data.category);
       if (data.quote != null) setQuote(data.quote);
+      if (data.heroCharacter) setHeroCharacter(data.heroCharacter);
       if (data.body != null) setBody(data.body);
       if (data.comicImg) setComicImg(data.comicImg);
       if (data.illustImg) setIllustImg(data.illustImg);
@@ -79,7 +89,233 @@ function App() {
   // ───────── 자동 저장 (IndexedDB) — 새로고침·재부팅에도 글·그림 보존 ─────────
   const hydrated = React.useRef(false);
   const saveTimer = React.useRef(null);
+  const diskAutosaveTimer = React.useRef(null);
+  const diskAutosaveState = React.useRef({});
+  const diskAutosaveSignatures = React.useRef({});
   const [savedAt, setSavedAt] = useStateApp(null);
+  const topicLabel = (window.TOPICS[topic] && window.TOPICS[topic].nameKo) || topic;
+  const bookLabel = String(bookNo).padStart(3, "0") + "권";
+  const splitDataUrl = (u) => {
+    if (!u || u.indexOf(",") < 0) return null;
+    const m = /data:image\/(\w+)/.exec(u);
+    return { ext: m ? m[1].replace("jpeg", "jpg") : "png", b64: u.split(",")[1] };
+  };
+  const saveBookFiles = (pages) => {
+    if (!(location.protocol === "http:" || location.protocol === "https:")) return Promise.resolve(null);
+    return fetch(location.origin + "/save-page", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic: topicLabel, book: bookLabel, folderPerPage: true, pages })
+    }).then(r => r.json());
+  };
+  const applyWorkspaceSnapshot = (snap, fallback = {}) => {
+    if (!snap || typeof snap !== "object") return;
+    if (snap.completed) setCompleted(snap.completed);
+    if (snap.coverImg !== undefined) setCoverImg(snap.coverImg);
+    if (snap.backImg !== undefined) setBackImg(snap.backImg);
+    if (snap.oduniImg !== undefined) setOduniImg(snap.oduniImg);
+    if (snap.heroCharacter) setHeroCharacter(snap.heroCharacter);
+    if (snap.currentSpread != null) setCurrentSpread(snap.currentSpread);
+    else if (fallback.currentSpread != null) setCurrentSpread(fallback.currentSpread);
+    if (snap.category != null) setCategory(snap.category);
+    if (snap.quote != null) setQuote(snap.quote);
+    if (snap.body != null) setBody(snap.body);
+    else if (snap.completed && snap.currentSpread && snap.completed[snap.currentSpread] && snap.completed[snap.currentSpread].body != null) {
+      setBody(snap.completed[snap.currentSpread].body);
+    }
+    if (snap.versions != null) setVersions(Array.isArray(snap.versions) ? snap.versions : []);
+    if (snap.activeVer != null) setActiveVer(typeof snap.activeVer === "number" ? snap.activeVer : null);
+    if (snap.pickedComic !== undefined) setPickedComic(snap.pickedComic);
+    if (snap.pickedIllust !== undefined) setPickedIllust(snap.pickedIllust);
+    if (snap.comicImg !== undefined) setComicImg(snap.comicImg);
+    if (snap.illustImg !== undefined) setIllustImg(snap.illustImg);
+    if (snap.savedAt !== undefined) setSavedAt(snap.savedAt);
+  };
+  const postAutosaveFiles = (meta, pages) => {
+    if (!(location.protocol === "http:" || location.protocol === "https:")) return Promise.resolve(null);
+    return fetch(location.origin + "/save-page", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic: meta.topicLabel, book: meta.bookLabel, pages })
+    }).then(r => r.json());
+  };
+  const stripImagesForAutosave = (entry) => {
+    if (!entry || typeof entry !== "object") return entry;
+    const out = { ...entry };
+    if (out.comicImg) out.comicImg = "[autosaved-image]";
+    if (out.illustImg) out.illustImg = "[autosaved-image]";
+    return out;
+  };
+  const runDiskAutosave = async (reason = "timer") => {
+    const s = diskAutosaveState.current || {};
+    if (!s.topicLabel || !s.bookLabel) return;
+    const pad = n => String(n).padStart(3, "0");
+    const now = new Date();
+    const completedSnapshot = {};
+    Object.keys(s.completed || {}).forEach(k => {
+      completedSnapshot[k] = stripImagesForAutosave((s.completed || {})[k]);
+    });
+    const snapshot = {
+      autosavedAt: now.toISOString(),
+      autosavedAtKo: now.toLocaleString("ko-KR"),
+      reason,
+      topic: s.topic,
+      topicLabel: s.topicLabel,
+      bookNo: s.bookNo,
+      bookLabel: s.bookLabel,
+      currentSpread: s.currentSpread,
+      category: s.category,
+      quote: s.quote,
+      heroCharacter: s.heroCharacter,
+      body: s.body || "",
+      activeVer: s.activeVer,
+      versions: s.versions || [],
+      pickedComic: s.pickedComic || null,
+      pickedIllust: s.pickedIllust || null,
+      completed: completedSnapshot,
+      coverImg: s.coverImg ? "[stored-in-browser]" : null,
+      backImg: s.backImg ? "[stored-in-browser]" : null,
+      oduniImg: s.oduniImg ? "[stored-in-browser]" : null
+    };
+    const textFiles = [
+      { sub: "autosave", name: "workspace_autosave.json", text: JSON.stringify(snapshot, null, 2) },
+      { sub: "autosave", name: "current_body.txt", text: s.body || "" }
+    ];
+    const curSp = window.BOOK_SPREADS[s.currentSpread];
+    if (curSp && curSp.leftMeta.section === "body" && s.body && s.body.trim()) {
+      const aId = pad(curSp.leftPage) + "_a";
+      textFiles.push({ sub: "autosave", name: aId + ".txt", text: s.body });
+    }
+    Object.keys(s.completed || {}).forEach(idx => {
+      const d = (s.completed || {})[idx] || {};
+      const sp = window.BOOK_SPREADS[idx];
+      if (!sp || sp.leftMeta.section !== "body" || !d.body) return;
+      const aId = pad(sp.leftPage) + "_a";
+      textFiles.push({ sub: "autosave", name: aId + ".txt", text: d.body });
+    });
+    await postAutosaveFiles(s, [{ id: "", files: textFiles }]);
+
+    const imageJobs = [];
+    const addImage = (name, dataUrl) => {
+      const img = splitDataUrl(dataUrl);
+      if (!img) return;
+      const fname = name + "." + img.ext;
+      const sig = img.ext + "|" + img.b64.length + "|" + img.b64.slice(0, 64) + "|" + img.b64.slice(-64);
+      if (diskAutosaveSignatures.current[fname] === sig) return;
+      diskAutosaveSignatures.current[fname] = sig;
+      imageJobs.push(postAutosaveFiles(s, [{ id: "", files: [{ sub: "autosave", name: fname, b64: img.b64 }] }]));
+    };
+    if (curSp && curSp.leftMeta.section === "body") {
+      addImage(pad(curSp.leftPage) + "_a", s.comicImg);
+      addImage(pad(curSp.rightPage) + "_b", s.illustImg);
+    }
+    Object.keys(s.completed || {}).forEach(idx => {
+      const d = (s.completed || {})[idx] || {};
+      const sp = window.BOOK_SPREADS[idx];
+      if (!sp || sp.leftMeta.section !== "body") return;
+      addImage(pad(sp.leftPage) + "_a", d.comicImg);
+      addImage(pad(sp.rightPage) + "_b", d.illustImg);
+    });
+    if (imageJobs.length) await Promise.all(imageJobs);
+    console.info(`[disk-autosave] ${s.topicLabel}/${s.bookLabel}/autosave saved (${reason})`);
+  };
+  const saveCurrentBodyFile = (text) => {
+    const curSp = window.BOOK_SPREADS[currentSpread];
+    if (!curSp || curSp.leftMeta.section !== "body" || !text || !text.trim()) return;
+    const aId = String(curSp.leftPage).padStart(3, "0") + "_a";
+    saveBookFiles([{ id: aId, files: [{ name: aId + ".txt", text }] }])
+      .catch(e => console.warn("[body-backup] 저장 실패:", e.message));
+  };
+  const saveCurrentImageFile = (kind, dataUrl) => {
+    const curSp = window.BOOK_SPREADS[currentSpread];
+    const img = splitDataUrl(dataUrl);
+    if (!curSp || curSp.leftMeta.section !== "body" || !img) return;
+    const id = kind === "comic"
+      ? String(curSp.leftPage).padStart(3, "0") + "_a"
+      : String(curSp.rightPage).padStart(3, "0") + "_b";
+    saveBookFiles([{ id, files: [{ name: id + "." + img.ext, b64: img.b64 }] }])
+      .catch(e => console.warn("[image-backup] 저장 실패:", e.message));
+  };
+  const setComicImgAndBackup = (u) => {
+    setComicImg(u);
+    if (u) saveCurrentImageFile("comic", u);
+  };
+  const setIllustImgAndBackup = (u) => {
+    setIllustImg(u);
+    if (u) saveCurrentImageFile("illust", u);
+  };
+  const resetCurrentBookAfterFinalize = async () => {
+    clearTimeout(saveTimer.current);
+    setCompleted({});
+    setCoverImg(null);
+    setBackImg(null);
+    setOduniImg(null);
+    setCurrentSpread(1);
+    setPreviewSpread(0);
+    setBody("");
+    setRetryLog([]);
+    setVersions([]);
+    setActiveVer(null);
+    setPickedComic(null);
+    setPickedIllust(null);
+    setComicImg(null);
+    setIllustImg(null);
+    setSavedAt(null);
+    if (window.ArtbookStore) {
+      await window.ArtbookStore.set(window.QuoteLedger.workspaceKey(topic, bookNo), {
+        completed: {},
+        coverImg: null,
+        backImg: null,
+        oduniImg: null,
+        heroCharacter,
+        savedAt: null,
+        finalizedReset: Date.now()
+      });
+      await window.ArtbookStore.set("prompt_draft_image", {});
+      await window.ArtbookStore.set("prompt_draft_comic", {});
+    }
+    setTab("workshop");
+    setToast({ kind: "ok", text: `✅ ${topicLabel} ${bookNo}권 PDF 저장 완료 — 화면을 비우고 다음 작업 준비 상태로 전환됨` });
+    setTimeout(() => setToast(null), 5000);
+  };
+  const restoreCurrentWorkspace = async () => {
+    if (!window.ArtbookStore) return false;
+    const key = window.QuoteLedger.workspaceKey(topic, bookNo);
+    const snap = await window.ArtbookStore.get(key);
+    if (!snap) return false;
+    applyWorkspaceSnapshot(snap, { currentSpread: 1 });
+    setTab("workshop");
+    setToast({ kind: "ok", text: `✓ 현재 작업 ${topicLabel} ${bookNo}권 복구 완료` });
+    setTimeout(() => setToast(null), 3000);
+    return true;
+  };
+  useEffect(() => {
+    window.restoreCurrentWorkspace = restoreCurrentWorkspace;
+    return () => { delete window.restoreCurrentWorkspace; };
+  }, [topic, bookNo, topicLabel]);
+
+  diskAutosaveState.current = {
+    topic,
+    topicLabel,
+    bookNo,
+    bookLabel,
+    currentSpread,
+    category,
+    quote,
+    heroCharacter,
+    body,
+    retryLog,
+    versions,
+    activeVer,
+    pickedComic,
+    pickedIllust,
+    comicImg,
+    illustImg,
+    completed,
+    coverImg,
+    backImg,
+    oduniImg
+  };
 
   useEffect(() => {
     let alive = true;
@@ -115,11 +351,7 @@ function App() {
         }
       }
       if (alive && snap && typeof snap === "object") {
-        if (snap.completed) setCompleted(snap.completed);
-        if (snap.coverImg) setCoverImg(snap.coverImg);
-        if (snap.backImg) setBackImg(snap.backImg);
-        if (snap.oduniImg) setOduniImg(snap.oduniImg);
-        if (snap.savedAt) setSavedAt(snap.savedAt);
+        applyWorkspaceSnapshot(snap, { currentSpread: 1 });
       }
       hydrated.current = true;
     })();
@@ -127,12 +359,29 @@ function App() {
   }, []);
 
   useEffect(() => {
+    clearInterval(diskAutosaveTimer.current);
+    const run = (reason) => {
+      runDiskAutosave(reason).catch(e => console.warn("[disk-autosave] 저장 실패:", e.message));
+    };
+    const first = setTimeout(() => run("startup"), 15000);
+    diskAutosaveTimer.current = setInterval(() => run("5min"), 5 * 60 * 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(diskAutosaveTimer.current);
+    };
+  }, [topic, bookNo]);
+
+  useEffect(() => {
     if (!hydrated.current || !window.ArtbookStore) return;
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       const now = new Date();
       const ts = now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
-      const snap = { completed, coverImg, backImg, oduniImg, savedAt: ts };
+      const snap = {
+        completed, coverImg, backImg, oduniImg, heroCharacter, savedAt: ts,
+        currentSpread, category, quote, body, versions, activeVer,
+        pickedComic, pickedIllust, comicImg, illustImg
+      };
       const ok = await window.ArtbookStore.set(window.QuoteLedger.workspaceKey(topic, bookNo), snap);
       if (ok) setSavedAt(ts);
 
@@ -169,7 +418,7 @@ function App() {
         await window.ArtbookStore.set("page_backups", backups);
       } catch (e) { /* 백업 실패는 본 저장에 영향 주지 않음 */ }
     }, 700);
-  }, [completed, coverImg, backImg, oduniImg, bookNo, topic]);
+  }, [completed, coverImg, backImg, oduniImg, heroCharacter, bookNo, topic]);
 
   // 주제·권 전환 공통 헬퍼 — (newTopic, newBookNo)로 이전 키 저장 + 새 키 로드 + 상태 리셋
   const switchWorkspace = async (newTopic, newBookNo, opts = {}) => {
@@ -183,7 +432,9 @@ function App() {
         const ts = now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
         // 1) 이전 주제+권 데이터 즉시 저장
         await window.ArtbookStore.set(window.QuoteLedger.workspaceKey(prevTopic, prevBookNo), {
-          completed, coverImg, backImg, oduniImg, savedAt: ts
+          completed, coverImg, backImg, oduniImg, heroCharacter, savedAt: ts,
+          currentSpread, category, quote, body, versions, activeVer,
+          pickedComic, pickedIllust, comicImg, illustImg
         });
         // 2) 새 주제+권 데이터 로드
         const next = await window.ArtbookStore.get(window.QuoteLedger.workspaceKey(newTopic, newBookNo));
@@ -192,12 +443,14 @@ function App() {
           setCoverImg(next.coverImg || null);
           setBackImg(next.backImg || null);
           setOduniImg(next.oduniImg || null);
+          setHeroCharacter(next.heroCharacter || "sangchu");
           setSavedAt(next.savedAt || null);
         } else {
           setCompleted({});
           setCoverImg(null);
           setBackImg(null);
           setOduniImg(null);
+          setHeroCharacter("sangchu");
           setSavedAt(null);
         }
       }
@@ -277,6 +530,7 @@ function App() {
       if (saved.topic) setTopic(saved.topic);
       if (saved.category) setCategory(saved.category);
       if (saved.quote != null) setQuote(saved.quote);
+      if (saved.heroCharacter) setHeroCharacter(saved.heroCharacter);
       if (saved.book) setBookNo(saved.book);
       setVersions(Array.isArray(saved.versions) ? saved.versions : []); // 생성 이력 복원
       setActiveVer(typeof saved.activeVerIdx === "number" ? saved.activeVerIdx : null); // 선택 버전 복원
@@ -299,6 +553,33 @@ function App() {
   const sp = window.BOOK_SPREADS[currentSpread];
   const leftFile = `${String(sp.leftPage).padStart(3, "0")}_a.jpg`;
   const rightFile = `${String(sp.rightPage).padStart(3, "0")}_b.jpg`;
+
+  const completedForView = useMemoApp(() => {
+    const curSp = window.BOOK_SPREADS[currentSpread];
+    const draftHasContent = !!(
+      (body && body.trim()) || comicImg || illustImg ||
+      (versions && versions.length) || pickedComic || pickedIllust
+    );
+    if (!draftHasContent || !curSp || curSp.leftMeta.section !== "body") return completed;
+    if (completed[currentSpread] && completed[currentSpread].confirmed) return completed;
+    const pad = n => String(n).padStart(3, "0");
+    return {
+      ...completed,
+      [currentSpread]: {
+        ...(completed[currentSpread] || {}),
+        body,
+        topic, category, quote, heroCharacter,
+        book: bookNo,
+        comicFile: pickedComic || `${pad(curSp.leftPage)}_a.jpg`,
+        illustFile: pickedIllust || `${pad(curSp.rightPage)}_b.jpg`,
+        comicImg: comicImg || completed[currentSpread]?.comicImg || null,
+        illustImg: illustImg || completed[currentSpread]?.illustImg || null,
+        versions,
+        activeVerIdx: activeVer,
+        draft: true
+      }
+    };
+  }, [completed, currentSpread, body, comicImg, illustImg, versions, pickedComic, pickedIllust, topic, category, quote, heroCharacter, bookNo, activeVer]);
 
   // 이 스프레드가 '확정'되었나 → 확정 시 새 본문이 덮어쓰지 못하게 잠금
   const spreadLocked = !!(completed[currentSpread] && completed[currentSpread].confirmed);
@@ -326,13 +607,14 @@ function App() {
       [currentSpread]: {
         ...(prev[currentSpread] || {}),
         body: text,
-        topic, category, quote,
+        topic, category, quote, heroCharacter,
         comicFile: leftFile,
         illustFile: rightFile,
         comicImg: comicImg || prev[currentSpread]?.comicImg || null,
         illustImg: illustImg || prev[currentSpread]?.illustImg || null
       }
     }));
+    saveCurrentBodyFile(text);
   };
 
   // 생성한 본문 후보들(versions)을 해당 스프레드에 영구 보존
@@ -343,9 +625,9 @@ function App() {
     setCompleted(prev => {
       const cur = prev[currentSpread] || {};
       if (cur.versions === versions) return prev;
-      return { ...prev, [currentSpread]: { ...cur, versions, topic, category, quote } };
+      return { ...prev, [currentSpread]: { ...cur, versions, topic, category, quote, heroCharacter } };
     });
-  }, [versions]);
+  }, [versions, heroCharacter]);
 
   // 선택된 버전 인덱스(activeVer)도 영구 저장 — 프롬프트 페이지 왕복 후에도 어떤 버전을 골랐는지 표시 유지
   useEffect(() => {
@@ -414,7 +696,7 @@ function App() {
         illustFile: pickedIllust || rightFile,
         comicImg,
         illustImg,
-        topic, category, quote, book: bookNo
+        topic, category, quote, heroCharacter, book: bookNo
       }
     });
     // 페이지별 폴더로 실제 파일 저장 (서버로 열렸을 때만): pages/<권>/<NNN_a>/...
@@ -429,31 +711,22 @@ function App() {
       const bId = pad(sp.rightPage) + "_b";
       const aImg = splitDataUrl(comicImg);
       const bImg = splitDataUrl(illustImg);
-      // MAKE 스냅샷 — 이 스토리+4컷+이미지 묶음을 versions/ 에 영구 보존
-      // (이후 작업실에서 다시 생성해도 이 스냅샷은 덮어쓰지 않음 → 스토리 유실 방지)
-      const d = new Date();
-      const vstamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0")
-        + "_" + String(d.getHours()).padStart(2,"0") + String(d.getMinutes()).padStart(2,"0") + String(d.getSeconds()).padStart(2,"0");
       const payload = {
-        book: String(bookNo).padStart(2, "0") + "권",
+        topic: topicLabel,
+        book: bookLabel,
+        folderPerPage: true,
         pages: [
           {
             id: aId,
             files: [
               { name: aId + ".txt", text: body },
-              ...(aImg ? [{ name: aId + "." + aImg.ext, b64: aImg.b64 }] : []),
-              // 영구 스냅샷(스토리+4컷 함께)
-              { sub: "versions", name: aId + "_" + vstamp + ".txt", text: body },
-              ...(aImg ? [{ sub: "versions", name: aId + "_" + vstamp + "." + aImg.ext, b64: aImg.b64 }] : [])
+              ...(aImg ? [{ name: aId + "." + aImg.ext, b64: aImg.b64 }] : [])
             ]
           },
           {
             id: bId,
             files: [
-              ...(bImg ? [{ name: bId + "." + bImg.ext, b64: bImg.b64 }] : []),
-              // 상징 이미지 영구 스냅샷(같은 스토리 묶음)
-              ...(bImg ? [{ sub: "versions", name: bId + "_" + vstamp + "." + bImg.ext, b64: bImg.b64 }] : []),
-              { sub: "versions", name: bId + "_" + vstamp + ".txt", text: body }
+              ...(bImg ? [{ name: bId + "." + bImg.ext, b64: bImg.b64 }] : [])
             ]
           }
         ]
@@ -500,7 +773,7 @@ function App() {
     if (location.protocol === "http:" || location.protocol === "https:") {
       fetch(location.origin + "/delete-page", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ book: String(bookNo).padStart(2, "0") + "권", ids: [aF, bF] })
+        body: JSON.stringify({ topic: topicLabel, book: bookLabel, ids: [aF, bF] })
       }).then(r => r.json()).then(j => {
         setToast({ kind: "ok", text: `🗑 본문#${String(currentSpread).padStart(2,"0")} 삭제됨 · 디스크 ${(j.removed||[]).length}개 폴더 제거 (1·2페이지 유지)` });
         setTimeout(() => setToast(null), 4000);
@@ -557,7 +830,7 @@ function App() {
       {promptPage ? (
         <window.PromptGeneratorPage
           mode={promptPage}
-          ctx={{ topic, category, quote, body }}
+          ctx={{ topic, category, quote, body, heroCharacter }}
           onBack={() => setPromptPage(null)}
         />
       ) : (
@@ -565,6 +838,8 @@ function App() {
           {tab === "workshop" && (
         <Workshop
           topic={topic} setTopic={setTopic} onChangeTopic={onChangeTopic}
+          heroCharacter={heroCharacter} setHeroCharacter={setHeroCharacter}
+          characters={ODUNI_CHARACTERS}
           category={category} setCategory={setCategory}
           quote={quote} setQuote={setQuote}
           currentSpread={currentSpread} setCurrentSpread={setCurrentSpread}
@@ -577,8 +852,8 @@ function App() {
           spreadLocked={spreadLocked} onUnlockSpread={onUnlockSpread}
           pickedComic={pickedComic} setPickedComic={setPickedComic}
           pickedIllust={pickedIllust} setPickedIllust={setPickedIllust}
-          comicImg={comicImg} setComicImg={setComicImg}
-          illustImg={illustImg} setIllustImg={setIllustImg}
+          comicImg={comicImg} setComicImg={setComicImgAndBackup}
+          illustImg={illustImg} setIllustImg={setIllustImgAndBackup}
           completed={completed}
           leftFile={leftFile} rightFile={rightFile}
           canMake={canMake} onMake={onMake} onDeleteSpread={onDeleteSpread}
@@ -591,27 +866,45 @@ function App() {
       {tab === "book" && (
         <BookGrid
           spreads={window.BOOK_SPREADS}
-          completed={completed}
+          completed={completedForView}
           onPickSpread={(idx) => {
             setCurrentSpread(idx);
             setTab("workshop");
           }}
+          onOpenPreview={(idx) => {
+            setPreviewSpread(idx);
+            setTab("preview");
+          }}
           topic={topic}
           coverImg={coverImg} backImg={backImg}
           onCoverUpload={setCoverImg} onBackUpload={setBackImg}
+          bookNo={bookNo}
+          oduniImg={oduniImg}
         />
       )}
 
       {tab === "preview" && (
         <BookPreview
           spreads={window.BOOK_SPREADS}
-          completed={completed} setCompleted={setCompleted}
+          completed={completedForView} setCompleted={setCompleted}
+          onPreviewBodyChange={(idx, patch) => {
+            setCurrentSpread(idx);
+            if (patch && patch.body != null) setBody(patch.body);
+            setCompleted(prev => ({
+              ...prev,
+              [idx]: {
+                ...(prev[idx] || {}),
+                ...(patch || {})
+              }
+            }));
+          }}
           topic={topic}
           coverImg={coverImg} backImg={backImg}
           oduniImg={oduniImg} setOduniImg={setOduniImg}
           comicSide={tweakValues.comicSide}
           currentIdx={previewSpread} setCurrentIdx={setPreviewSpread}
           bookNo={bookNo}
+          onBookFinalized={resetCurrentBookAfterFinalize}
         />
       )}
 
@@ -699,6 +992,7 @@ function App() {
 function Workshop(props) {
   const {
     topic, setTopic, onChangeTopic, category, setCategory, quote, setQuote,
+    heroCharacter, setHeroCharacter, characters,
     currentSpread, setCurrentSpread,
     body, setBody, retryLog, setRetryLog, busy, setBusy,
     versions, setVersions, activeVer, setActiveVer, onSaveToBook,
@@ -712,11 +1006,28 @@ function Workshop(props) {
   const T = window.TOPICS[topic];
   const sp = window.BOOK_SPREADS[currentSpread];
   const isBody = sp.leftMeta.section === "body";
+  const heroList = characters || ODUNI_CHARACTERS;
 
   return (
     <div className="workshop">
       {/* 왼쪽 패널: 입력 */}
       <aside className="panel">
+        <div className="panel-section">
+          <h4 className="panel-title">오둥이 주인공</h4>
+          <div className="hero-grid">
+            {heroList.map(c => (
+              <button
+                key={c.id}
+                className={"hero-card" + (heroCharacter === c.id ? " active" : "")}
+                onClick={() => setHeroCharacter(c.id)}
+                type="button"
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="panel-section">
           <h4 className="panel-title">주제</h4>
           <div className="topic-grid">
@@ -768,6 +1079,7 @@ function Workshop(props) {
             bookNo={bookNo}
             currentSpread={currentSpread}
             completed={completed}
+            heroName={(heroList.find(c => c.id === heroCharacter) || heroList[0]).name}
           />
         </div>
 

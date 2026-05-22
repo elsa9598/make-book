@@ -87,6 +87,19 @@ function RecoveryPanel({ completed, setCompleted, setToast, bookNo, onChangeBook
   };
   useEffectRC(() => { reload(); }, [bookNo, topic]);
 
+  const restoreCurrentWork = async () => {
+    if (window.restoreCurrentWorkspace) {
+      const ok = await window.restoreCurrentWorkspace();
+      await reload();
+      if (!ok) {
+        setToast && setToast({ kind: "ok", text: "현재 작업 복구본이 없습니다" });
+        setTimeout(() => setToast && setToast(null), 2500);
+      }
+      return;
+    }
+    await reload();
+  };
+
   // 특정 주제·권으로 전환 + 자동 복원
   const switchToVolume = async (toTopic, vol) => {
     if (toTopic === topic && vol === bookNo) {
@@ -201,7 +214,7 @@ function RecoveryPanel({ completed, setCompleted, setToast, bookNo, onChangeBook
           </div>
         </div>
         <div className="usage-actions">
-          <button className="btn ghost" onClick={reload}>새로고침</button>
+          <button className="btn ghost" onClick={restoreCurrentWork}>현재작업복구</button>
         </div>
       </div>
 

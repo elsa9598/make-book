@@ -99,7 +99,7 @@ window.QuoteLedger = {
 
 /* ───────── 명언 Picker — 폼박스 아래 100개 리스트 ───────── */
 function QuotePicker(props) {
-  const { topic, category, quote, setQuote, ledger, bookNo, currentSpread, completed } = props;
+  const { topic, category, quote, setQuote, ledger, bookNo, currentSpread, completed, heroName } = props;
   const [filter, setFilter] = useStateUT("");
   const [onlyUnused, setOnlyUnused] = useStateUT(false);
   const [copied, setCopied] = useStateUT(false);
@@ -107,7 +107,9 @@ function QuotePicker(props) {
   // 챗GPT용 본문 생성 프롬프트를 클립보드에 복사 (사장님이 챗GPT 채팅창에 붙여넣기)
   const onCopyChatGPTPrompt = async () => {
     if (!quote.trim()) return;
-    const text = `"${quote.trim()}"
+    const hero = heroName || "오둥이";
+    const text = `주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
+"${quote.trim()}"
 한국어 20줄 이내, 각 줄은 짧게 (한 문장 한 줄)
 명언을 직접 인용하거나 반복 설명하지 말고,
 이야기로 명언의 진실을 드러낼 것`;

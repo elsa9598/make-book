@@ -42,32 +42,33 @@ function proxyOllama(req, res) {
   });
 }
 
-// PDF 저장 — 브라우저가 보낸 PDF를 make_book/pdf 폴더에 기록
+function safeName(s) {
+  return String(s || "").replace(/[^\w.\-가-힣]+/g, "_").slice(0, 80);
+}
+
+function topicBookDir(j) {
+  const topic = safeName(j.topicLabel || j.topicName || j.topic || "");
+  const bookRaw = j.book || j.bookLabel || "";
+  const book = safeName(bookRaw).slice(0, 40);
+  if (!topic || !book) return null;
+  const full = path.resolve(ROOT, "pages", topic, book);
+  const base = path.resolve(ROOT, "pages");
+  if (!full.startsWith(base)) return null;
+  fs.mkdirSync(full, { recursive: true });
+  return full;
+}
+
+// PDF 저장 — 새 구조는 make_book/pages/<주제>/<권>/pdf/, 구 구조는 make_book/pdf/
 function savePdf(req, res) {
   let body = "";
   req.on("data", c => { body += c; if (body.length > 80e6) req.destroy(); });
   req.on("end", () => {
     try {
       const j = JSON.parse(body);
-      let name = String(j.filename || "artbook.pdf").replace(/[^\w.\-가-힣]+/g, "_");
+      let name = safeName(j.filename || "artbook.pdf");
       if (!name.toLowerCase().endsWith(".pdf")) name += ".pdf";
-      const sub = j.sub ? String(j.sub).replace(/[^\w.\-가-힣]+/g, "_").slice(0, 32) : "";
-      // pdf_4ea = 1권 최종 확정 산출물 → ROOT 직속 (make_book/pdf_4ea/)
-      // printVol (1~600) = A4 인쇄용 임포지션 PDF → ROOT/pdf_인쇄용/{N}권/
-      // 그 외는 pdf/{sub}
-      let dir;
-      if (sub === "pdf_4ea") {
-        dir = path.join(ROOT, "pdf_4ea");
-      } else if (j.printVol) {
-        const vol = parseInt(j.printVol, 10);
-        if (Number.isFinite(vol) && vol >= 1 && vol <= 600) {
-          dir = path.join(ROOT, "pdf_인쇄용", vol + "권");
-        } else {
-          dir = path.join(ROOT, "pdf_인쇄용");
-        }
-      } else {
-        dir = sub ? path.join(ROOT, "pdf", sub) : path.join(ROOT, "pdf");
-      }
+      const bookDir = topicBookDir(j);
+      const dir = bookDir ? path.join(bookDir, "pdf") : path.join(ROOT, "pdf");
       fs.mkdirSync(dir, { recursive: true });
       const buf = Buffer.from(String(j.data || ""), "base64");
       const full = path.join(dir, name);
@@ -81,28 +82,54 @@ function savePdf(req, res) {
   });
 }
 
-// 페이지 파일 저장 — make_book/pages/<권>/NNN_a.jpg|.txt, NNN_b.jpg
+// 페이지 파일 저장
+// 새 구조 기본: make_book/pages/<주제>/<권>/001_a.txt|001_a.png|002_b.png
+// folderPerPage=true: make_book/pages/<주제>/<권>/001_a/001_a.txt|001_a.png
+// 구 구조: make_book/pages/<권>/<NNN_a>/...
 function savePage(req, res) {
   let body = "";
   req.on("data", c => { body += c; if (body.length > 80e6) req.destroy(); });
   req.on("end", () => {
     try {
       const j = JSON.parse(body);
-      const safe = s => String(s || "").replace(/[^\w.\-가-힣]+/g, "_");
-      const book = safe(j.book || "기타").slice(0, 40);   // 예: 01권
+      const book = safeName(j.book || "기타").slice(0, 40);   // 예: 001권
       const written = [];
-      // 페이지마다 독립 폴더: pages/<권>/<NNN_a>/...
+
+      const bookDir = topicBookDir(j);
+      if (bookDir) {
+        (j.pages || []).forEach(pg => {
+          const id = safeName(pg.id).slice(0, 40);
+          const pageDir = j.folderPerPage && id ? path.join(bookDir, id) : bookDir;
+          fs.mkdirSync(pageDir, { recursive: true });
+          (pg.files || []).forEach(f => {
+            const name = safeName(f.name);
+            if (!name) return;
+            const sub = f.sub ? safeName(f.sub).slice(0, 32) : "";
+            const tgtDir = sub ? path.join(pageDir, sub) : pageDir;
+            fs.mkdirSync(tgtDir, { recursive: true });
+            const full = path.join(tgtDir, name);
+            if (typeof f.text === "string") fs.writeFileSync(full, f.text, "utf8");
+            else if (f.b64) fs.writeFileSync(full, Buffer.from(f.b64, "base64"));
+            else return;
+            written.push(path.relative(ROOT, full));
+          });
+        });
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        return res.end(JSON.stringify({ ok: true, root: bookDir, written }));
+      }
+
+      // 하위호환: 페이지마다 독립 폴더: pages/<권>/<NNN_a>/...
       (j.pages || []).forEach(pg => {
-        const id = safe(pg.id).slice(0, 40);              // 예: 009_a
+        const id = safeName(pg.id).slice(0, 40);              // 예: 009_a
         if (!id) return;
         const dir = path.join(ROOT, "pages", book, id);
         fs.mkdirSync(dir, { recursive: true });
         (pg.files || []).forEach(f => {
-          const name = safe(f.name);
+          const name = safeName(f.name);
           if (!name) return;
           let tgtDir = dir;
-          if (f.sub) {                                    // 예: versions (영구 스냅샷)
-            tgtDir = path.join(dir, safe(f.sub).slice(0, 24));
+          if (f.sub) {
+            tgtDir = path.join(dir, safeName(f.sub).slice(0, 24));
             fs.mkdirSync(tgtDir, { recursive: true });
           }
           const full = path.join(tgtDir, name);
@@ -121,18 +148,33 @@ function savePage(req, res) {
   });
 }
 
-// 페이지(스프레드) 디스크 폴더 삭제 — pages/<권>/<NNN_a>, <NNN_b>
+// 페이지(스프레드) 디스크 삭제 — 새 구조는 파일 삭제, 구 구조는 페이지 폴더 삭제
 function deletePage(req, res) {
   let body = "";
   req.on("data", c => { body += c; if (body.length > 1e6) req.destroy(); });
   req.on("end", () => {
     try {
       const j = JSON.parse(body);
-      const safe = s => String(s || "").replace(/[^\w.\-가-힣]+/g, "_");
-      const book = safe(j.book || "").slice(0, 40);
+      const book = safeName(j.book || "").slice(0, 40);
       const removed = [];
+      const bookDir = topicBookDir(j);
+      if (bookDir) {
+        (j.ids || []).forEach(id => {
+          const sid = safeName(id).slice(0, 40);
+          if (!sid) return;
+          [".txt", ".png", ".jpg", ".jpeg", ".webp"].forEach(ext => {
+            const full = path.join(bookDir, sid + ext);
+            if (full.startsWith(bookDir) && fs.existsSync(full)) {
+              fs.rmSync(full, { force: true });
+              removed.push(path.relative(ROOT, full));
+            }
+          });
+        });
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        return res.end(JSON.stringify({ ok: true, removed }));
+      }
       (j.ids || []).forEach(id => {
-        const sid = safe(id).slice(0, 40);
+        const sid = safeName(id).slice(0, 40);
         if (!sid || !book) return;
         const dir = path.join(ROOT, "pages", book, sid);
         if (dir.startsWith(path.join(ROOT, "pages")) && fs.existsSync(dir)) {
