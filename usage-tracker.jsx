@@ -134,7 +134,7 @@ function QuotePicker(props) {
     const hero = heroName || "오둥이";
     const text = `주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
 "${quote.trim()}"
-한국어 20줄 이내, 각 줄은 짧게 (한 문장 한 줄)
+한국어 **정확히 7문장**, 각 문장 **20자 이내**로 짧게 (한 문장 한 줄)
 명언을 직접 인용하거나 반복 설명하지 말고,
 이야기로 명언의 진실을 드러낼 것`;
     await copyToClipboard(text, setCopied);
@@ -265,7 +265,7 @@ function QuotePicker(props) {
           className="btn ghost"
           disabled={!quote.trim()}
           onClick={onCopyChatGPTPrompt}
-          title="선택된 명언으로 본문(20줄) 생성용 프롬프트를 클립보드에 복사"
+          title="선택된 명언으로 본문(7문장·각 20자) 생성용 프롬프트를 클립보드에 복사"
           style={{
             fontSize: 11, padding: "5px 10px", whiteSpace: "nowrap",
             background: copied ? "#2f5d3a" : undefined,

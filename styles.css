@@ -2387,13 +2387,14 @@ input[type="file"] { display: none; }
 .card-slot .card-cat .orn      { font-size: 15px !important; }
 
 /* ── 미리보기를 PDF와 동일 비율로: 글자를 카드 폭에 비례(컨테이너 단위) ──
-   PDF 카드폭 ≈ 666px 기준에서 전체 1.3배: 타이틀20.8→3.12cqi, 카테고리24.96→3.744cqi 등 */
+   PDF 카드폭 ≈ 666px 기준에서 전체 1.3배: 타이틀20.8→3.12cqi, 카테고리24.96→3.744cqi 등
+   2026-05-23 사장님 요청: 헤더·명언 +2px·찐하게(weight ↑). cqi 약 0.29~0.3 증가 = +2px 효과 */
 .card-slot { container-type: inline-size; }
-.card-slot .card-cat .cc-topic { font-size: 3.744cqi !important; }
-.card-slot .card-cat .cc-cat   { font-size: 2.925cqi !important; }
-.card-slot .card-cat .orn      { font-size: 2.925cqi !important; }
-.card-slot .cs-right .text-title.book-title-strong { font-size: 3.12cqi !important; }
-.card-slot .cs-right .text-title.book-title-strong .title-quote { font-size: inherit !important; }
+.card-slot .card-cat .cc-topic { font-size: 4.03cqi !important; font-weight: 800 !important; color: var(--ink) !important; }
+.card-slot .card-cat .cc-cat   { font-size: 3.21cqi !important; font-weight: 700 !important; color: var(--ink) !important; }
+.card-slot .card-cat .orn      { font-size: 3.21cqi !important; }
+.card-slot .cs-right .text-title.book-title-strong { font-size: 3.40cqi !important; font-weight: 800 !important; color: var(--ink) !important; }
+.card-slot .cs-right .text-title.book-title-strong .title-quote { font-size: inherit !important; font-weight: inherit !important; }
 
 /* 미리보기: PDF와 동일 1980×1400 렌더 후 화면 폭에 맞춰 축소 (픽셀 동일) */
 .preview-stage { display: block; }

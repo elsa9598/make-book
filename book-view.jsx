@@ -4,7 +4,7 @@ const { useState: useStateBV, useRef: useRefBV } = React;
 
 /* ────────── 자동 폰트 축소 ────────── */
 // 한 페이지에 맞도록 폰트 크기를 줄여서 fit
-function AutoFitBody({ text, maxFontSize = 60, minFontSize = 12 }) {
+function AutoFitBody({ text, maxFontSize = 60, minFontSize = 22 }) {
   const wrapRef = useRefBV();
   const innerRef = useRefBV();
   const [fontSize, setFontSize] = useStateBV(maxFontSize);
@@ -104,61 +104,69 @@ function AutoFitTextarea({ value, onChange, onExpand, maxFontSize = 30, minFontS
   );
 }
 
-// 인쇄용 임포지션 — 본문 10장 양면 (사장님 미니북, 2026-05-22)
-// 낱장: 앞면=본문 카드 / 뒷면=목차·줄공책·명언. A4 가로 2up 양면 인쇄.
-// 뒷면은 '상하 뒤집기' 보정으로 캡처 시 180° 회전(목차·명언 똑바로 / 줄공책은 대칭이라 무관).
-// 표지(철학종)·오둥이는 250g 별도 인쇄 → 이 임포지션에서 제외.
-const LEAFLETS_BODY = [
-  { front: 1,  back: "lined-note" },   // 001_a / 줄
-  { front: 2,  back: "contents" },     // 002_b / 목차
-  { front: 3,  back: "lined-note" },   // 003_a / 줄
-  { front: 4,  back: "lined-note" },   // 004_b / 줄
-  { front: 5,  back: "lined-note" },   // 005_a / 줄
-  { front: 6,  back: "lined-note" },   // 006_b / 줄
-  { front: 7,  back: "lined-note" },   // 007_a / 줄
-  { front: 8,  back: "lined-note" },   // 008_b / 줄
-  { front: 9,  back: "lined-note" },   // 009_a / 줄
-  { front: 10, back: "back-inner" },   // 010_b / 명언
-];
-
+// 인쇄용 임포지션 — 본문 5장 양면(2026-05-23 재배치, 사장님 워크플로우)
+// 사장님이 직접 5장 앞면 인쇄 → 뒤집어서 5장 뒷면 인쇄. 그래서 PDF 순서는
+//   ①철학종 → ②~⑥본문 앞 5장(001_a/002_b ... 009_a/010_b)
+//   → ⑦~⑪뒷면 5장(목차·줄·줄·줄·명언) → ⑫줄공책(별도) 순.
+// (옛 2026-05-22 2up imposition 방식 폐기)
 function labelOfSlot(slot) {
   if (slot === "lined-note") return "줄공책";
   if (slot === "contents") return "목차";
   if (slot === "back-inner") return "명언·구절";
+  if (slot === "philosophy-mark") return "철학종";
   if (typeof slot === "number") return String(slot).padStart(3, "0") + (slot % 2 ? "_a" : "_b");
   return "";
 }
 
-const BOOKLET_IMPOSITION = (() => {
-  const EMPTY = { front: null, back: null };
-  const pages = [];
-  for (let i = 0; i < LEAFLETS_BODY.length; i += 2) {
-    const a = LEAFLETS_BODY[i];
-    const b = LEAFLETS_BODY[i + 1] || EMPTY;
-    const n = pages.length / 2 + 1;
-    // 앞면 (좌 a / 우 b)
-    pages.push({ sheet: "A" + n + " 앞", face: "front",
-      left:  { folio: null, label: labelOfSlot(a.front), slot: a.front },
-      right: { folio: null, label: labelOfSlot(b.front), slot: b.front } });
-    // 뒷면 (좌 a / 우 b). 단, 명언(back-inner) 있는 스프레드는 좌우 반전 (사장님 지정).
-    const swapBack = (a.back === "back-inner" || b.back === "back-inner");
-    const bl = swapBack ? b.back : a.back;
-    const br = swapBack ? a.back : b.back;
-    pages.push({ sheet: "A" + n + " 뒤", face: "back",
-      left:  { folio: null, label: labelOfSlot(bl), slot: bl },
-      right: { folio: null, label: labelOfSlot(br), slot: br } });
-  }
-  // 줄공책 1장(맨 끝) — 사장님이 이 페이지만 프린터에서 여러 장 인쇄해 작품 사이 4장씩 끼움
-  pages.push({ sheet: "줄공책", face: "front",
+const BOOKLET_IMPOSITION = [
+  /* ① 철학종 — 커버(첫 시트, 앞면만) */
+  { sheet: "철학종", face: "front",
+    left:  { folio: null, label: "",      slot: null },
+    right: { folio: null, label: "철학종", slot: "philosophy-mark" } },
+  /* ②~⑥ 본문 5장 앞면 (001_a/002_b … 009_a/010_b 순서) */
+  { sheet: "A1 앞", face: "front",
+    left:  { folio: null, label: "001_a", slot: 1 },
+    right: { folio: null, label: "002_b", slot: 2 } },
+  { sheet: "A2 앞", face: "front",
+    left:  { folio: null, label: "003_a", slot: 3 },
+    right: { folio: null, label: "004_b", slot: 4 } },
+  { sheet: "A3 앞", face: "front",
+    left:  { folio: null, label: "005_a", slot: 5 },
+    right: { folio: null, label: "006_b", slot: 6 } },
+  { sheet: "A4 앞", face: "front",
+    left:  { folio: null, label: "007_a", slot: 7 },
+    right: { folio: null, label: "008_b", slot: 8 } },
+  { sheet: "A5 앞", face: "front",
+    left:  { folio: null, label: "009_a", slot: 9 },
+    right: { folio: null, label: "010_b", slot: 10 } },
+  /* ⑦~⑪ 본문 5장 뒷면 (목차 → 줄 → 줄 → 줄 → 명언) — 사장님이 5장 뒤집어 인쇄 */
+  { sheet: "A1 뒤", face: "back",
     left:  { folio: null, label: "줄공책", slot: "lined-note" },
-    right: { folio: null, label: "줄공책", slot: "lined-note" } });
-  return pages;
-})();
+    right: { folio: null, label: "목차",   slot: "contents" } },
+  { sheet: "A2 뒤", face: "back",
+    left:  { folio: null, label: "줄공책", slot: "lined-note" },
+    right: { folio: null, label: "줄공책", slot: "lined-note" } },
+  { sheet: "A3 뒤", face: "back",
+    left:  { folio: null, label: "줄공책", slot: "lined-note" },
+    right: { folio: null, label: "줄공책", slot: "lined-note" } },
+  { sheet: "A4 뒤", face: "back",
+    left:  { folio: null, label: "줄공책", slot: "lined-note" },
+    right: { folio: null, label: "줄공책", slot: "lined-note" } },
+  { sheet: "A5 뒤", face: "back",
+    left:  { folio: null, label: "명언",   slot: "back-inner" },
+    right: { folio: null, label: "줄공책", slot: "lined-note" } },
+  /* ⑫ 줄공책 (별도 시트 — 사장님이 여러 장 인쇄해 작품 사이 끼움) */
+  { sheet: "줄공책", face: "front",
+    left:  { folio: null, label: "줄공책", slot: "lined-note" },
+    right: { folio: null, label: "줄공책", slot: "lined-note" } },
+];
 
 const BOOKLET_IMPOSITION_LABELS = BOOKLET_IMPOSITION
   .map(row => `${row.sheet}: ${row.left.label || "—"} | ${row.right.label || "—"}`);
 
 const BOOKLET_READING_SPREADS = [
+  /* 철학종 — 책 첫 펼침(2026-05-23 사장님 지정). 페이지번호 없음. */
+  { left: { folio: null, slot: null }, right: { folio: null, slot: "philosophy-mark" } },
   { left: { folio: null, slot: null }, right: { folio: 1, slot: "front-inner" } },
   { left: { folio: 2, slot: null }, right: { folio: 3, slot: "contents" } },
   { left: { folio: 4, slot: 1 }, right: { folio: 5, slot: 2 } },
@@ -172,6 +180,7 @@ const BOOKLET_READING_SPREADS = [
 
 const PDF_PAPER = "#f6ecd6";          // 화면 미리보기용 종이톤
 const PRINT_PAPER = "#ffffff";        // 인쇄 산출물용 흰색 — 크래프트지에 잉크 안 나가게(낭비 방지)
+const LINED_NOTE_COLOR = "rgba(124,94,60,0.80)"; // 줄공책·본문하단 줄 — 크래프트지에서도 보이게 2배 진하게(2026-05-23 사장님)
 
 const HANGUL_RE = /[ㄱ-ㅎㅏ-ㅣ가-힣]/;
 function hasHangul(text) {
@@ -525,6 +534,9 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
         </div>
       </div>
 
+      {/* 철학종 데코 섹션 제거(2026-05-23) — BookletMap 첫 시트가 이미 철학종이라 중복.
+         철학종은 인쇄구조(BookletMap)와 PDF 첫 페이지로만 1회 노출. */}
+
       <SectionHeader title="인쇄 구조" subtitle="본문 10장 양면 + 줄공책 1장" />
       <BookletMap
         completed={completed}
@@ -597,7 +609,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
 
       {workImageBusy && (
         <div className="book-structure-work-image-only" style={{ display: "none" }}>
-          {BOOKLET_READING_SPREADS.slice(2, 7).map((layout, i) => (
+          {BOOKLET_READING_SPREADS.slice(3, 8).map((layout, i) => (
             <div key={"work-img-" + i} className="a4-page">
               <A4Side slot={layout.left.slot} folio={layout.left.folio} side="left" T={T} topic={bookTopic}
                       completed={printExportData || completed} oduniImg={oduniImg} lang={printLang} paper={PRINT_PAPER} />
@@ -2167,7 +2179,9 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
     overflow: "hidden",
     flexShrink: 0
   };
-  const FolioMark = ({ size = 26 } = {}) => folio ? (
+  /* 페이지번호: 본문 카드(slot=1~10)에만 표시. "{slot}페이지" 포맷.
+     앞내지/목차/명언/오둥이/철학종/줄공책 등 비본문 슬롯은 표시 X. 한·영 공통. */
+  const FolioMark = ({ size = 22 } = {}) => (typeof slot === "number") ? (
     <div style={{
       position: "absolute",
       bottom: "20px",
@@ -2175,10 +2189,10 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
       textAlign: "center",
       fontSize: size + "px",
       fontWeight: 700,
-      color: "rgba(74,36,21,0.95)",
-      letterSpacing: "0.3em",
+      color: "rgba(74,36,21,0.85)",
+      letterSpacing: "0.15em",
       fontFamily: "var(--font-serif, serif)"
-    }}>– {folio} –</div>
+    }}>Page {slot}</div>
   ) : null;
   const topicTitle = isEn
     ? (T ? T.name : "")
@@ -2320,6 +2334,56 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
     );
   }
 
+  // 철학종 — 책 첫 페이지(우측 중앙). 좌측은 null 슬롯이라 공백 페이지로 렌더됨.
+  // ⚜ {한글 철학명} ⚜ + 영문 보조. FolioMark 없음(페이지번호 X).
+  if (slot === "philosophy-mark") {
+    return (
+      <div className={"a4-side a4-philosophy-mark a4-" + side} style={{
+        ...baseStyle,
+        display: "flex", alignItems: "center", justifyContent: "center"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.9em" }}>
+          <span style={{
+            fontSize: "120px",
+            color: "var(--topic-accent, #8b7355)",
+            lineHeight: 1
+          }}>⚜</span>
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            gap: "0.4em"
+          }}>
+            <span style={{
+              fontSize: "90px",
+              letterSpacing: "0.4em",
+              color: "var(--ink, #2b1d13)",
+              fontFamily: "var(--font-serif, serif)",
+              fontWeight: 600,
+              whiteSpace: "nowrap"
+            }}>
+              {T ? T.nameKo : ""}
+            </span>
+            {T && T.name ? (
+              <span style={{
+                fontSize: "32px",
+                letterSpacing: "0.4em",
+                color: "var(--ink-muted, #6b5440)",
+                fontFamily: "var(--font-serif, serif)",
+                textTransform: "uppercase",
+                opacity: 0.7
+              }}>{T.name}</span>
+            ) : null}
+          </div>
+          <span style={{
+            fontSize: "120px",
+            color: "var(--topic-accent, #8b7355)",
+            lineHeight: 1
+          }}>⚜</span>
+        </div>
+        {/* FolioMark 일부러 안 그림 — 페이지번호 없음 */}
+      </div>
+    );
+  }
+
   // 테마 마크 — 작업실 선택 철학을 한글·영어로 정중앙(15px), 고딕 ⚜ 앞뒤 장식
   if (slot === "theme-mark") {
     return (
@@ -2387,10 +2451,10 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
     );
   }
 
-  // 줄노트 — 20줄 가로줄 (글·그림 겸용, 웜브라운 톤온톤 연한 줄, 페이지번호 없음)
+  // 줄노트 — 20줄 가로줄 (글·그림 겸용, 웜브라운 톤온톤, 페이지번호 없음)
   if (slot === "lined-note") {
     const LINES = 20;
-    const lineColor = "rgba(124,94,60,0.30)"; // 웜브라운 톤온톤 — 연하게(그림 방해 최소)
+    const lineColor = LINED_NOTE_COLOR; // 크래프트지 가독성 위해 0.40 → 0.80(2배, 사장님 요청)
     return (
       <div className={"a4-side a4-lined-note a4-" + side} style={{
         ...baseStyle,
@@ -2496,23 +2560,35 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
             )
           )}
         </div>
-        {/* 하단 필기 여백 (69mm) — 페이지 번호는 영역 중앙 하단에 - NNN - 형식 */}
+        {/* 하단 필기 여백 — 줄 5줄(줄공책 20줄과 동일 간격 60.4px) + 페이지 번호 */}
         <div style={{
           flex: 1,
           position: "relative",
           background: PAPER
         }}>
+          {/* 본문 페이지 필기용 줄 5줄 — 줄공책과 동일 색·간격 */}
+          <div style={{
+            position: "absolute", top: 0, left: "9%", right: "9%",
+            display: "flex", flexDirection: "column"
+          }}>
+            {[0, 1, 2, 3, 4].map(i => (
+              <div key={i} style={{
+                borderBottom: "1.5px solid " + LINED_NOTE_COLOR,
+                height: "60.4px"
+              }} />
+            ))}
+          </div>
           <div style={{
             position: "absolute",
             bottom: "20px",
             left: 0, right: 0,
             textAlign: "center",
-            fontSize: "26px",
+            fontSize: "22px",
             fontWeight: 700,
-            color: "rgba(74,36,21,0.95)",
-            letterSpacing: "0.3em",
+            color: "rgba(74,36,21,0.85)",
+            letterSpacing: "0.15em",
             fontFamily: "var(--font-serif, serif)"
-          }}>– {folio || slot} –</div>
+          }}>Page {slot}</div>
         </div>
       </div>
     );
