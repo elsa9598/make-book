@@ -105,9 +105,13 @@ function RecoveryPanel({ completed, setCompleted, setToast, bookNo, onChangeBook
     const T = window.TOPICS[topic];
     const tName = T ? T.nameKo : topic;
     const padBook = String(bookNo).padStart(3, "0");
-    const url = `/pages/${encodeURIComponent(tName)}/${padBook}권/autosave/workspace_autosave_fixed.json`;
+    const urlFixed = `/pages/${encodeURIComponent(tName)}/${padBook}권/autosave/workspace_autosave_fixed.json`;
+    const urlNormal = `/pages/${encodeURIComponent(tName)}/${padBook}권/autosave/workspace_autosave.json`;
     try {
-      const res = await fetch(url);
+      let res = await fetch(urlFixed);
+      if (!res.ok) {
+        res = await fetch(urlNormal);
+      }
       if (!res.ok) throw new Error("디스크에 저장된 자동저장본이 없습니다. (" + res.status + ")");
       const snap = await res.json();
       if (!snap || typeof snap !== "object") throw new Error("데이터 형식이 올바르지 않습니다.");

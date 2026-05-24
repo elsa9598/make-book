@@ -307,7 +307,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
     await new Promise(r => requestAnimationFrame(() => r()));
   };
 
-  const exportStructurePrintPDF = async (lang = "ko") => {
+  const exportStructurePrintPDF = async (lang = "ko", opts = {}) => {
     if (printBusy) return;
     const jspdfNS = window.jspdf || window.jsPDF;
     const JsPDF = jspdfNS && (jspdfNS.jsPDF || jspdfNS);
@@ -399,7 +399,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
           const j = await r.json();
           if (j && j.ok) {
             saved = true;
-            alert(`${EN ? "영문" : "한글"} 출력용 PDF 저장 완료\n${j.path}`);
+            if (!opts.silent) alert(`${EN ? "영문" : "한글"} 출력용 PDF 저장 완료\n${j.path}`);
           }
         } catch (e) {
           console.warn("[book-structure-print] 폴더 저장 실패:", e.message);
@@ -416,7 +416,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
     }
   };
 
-  const exportStructureWorkImage = async (lang = "ko") => {
+  const exportStructureWorkImage = async (lang = "ko", opts = {}) => {
     if (workImageBusy) return;
     if (!window.html2canvas) {
       alert("이미지 캡처 라이브러리를 불러오지 못했습니다.");
@@ -487,7 +487,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
         const j = await r.json();
         if (j && j.ok) {
           saved = true;
-          alert((EN ? "영문 작업본문" : "작업본문") + " 5스프레드 이미지 저장 완료\n" + j.root + "\\pdf\\" + fname);
+          if (!opts.silent) alert((EN ? "영문 작업본문" : "작업본문") + " 5스프레드 이미지 저장 완료\n" + j.root + "\\pdf\\" + fname);
         }
       }
       if (!saved) {
@@ -506,6 +506,19 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       setPrintLang("ko");
       setPrintBusy("");
       setWorkImageBusy(false);
+    }
+  };
+  const exportAllStructure = async () => {
+    if (printBusy || workImageBusy) return;
+    if (!confirm(`한/영 인쇄용 PDF와 한/영 5스프레드 이미지 총 4개를 일괄 생성하시겠습니까?\n(시간이 다소 걸립니다)`)) return;
+    try {
+      await exportStructurePrintPDF("ko", { silent: true });
+      await exportStructurePrintPDF("en", { silent: true });
+      await exportStructureWorkImage("ko", { silent: true });
+      await exportStructureWorkImage("en", { silent: true });
+      alert("✅ 책구조의 모든 PDF 및 이미지가 성공적으로 생성되었습니다.");
+    } catch (e) {
+      alert("일괄 생성 중 오류 발생: " + e.message);
     }
   };
 
@@ -554,40 +567,14 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       }}>
         <button
           className="btn pdf-btn"
-          onClick={() => exportStructurePrintPDF("ko")}
-          disabled={!!printBusy}
-          title={`${bookNo || 1}권 한글 출력용 PDF → pages/${T ? T.nameKo : topic}/${String(bookNo || 1).padStart(3, "0")}권/pdf/`}
-        >
-          {printBusy === "ko" ? "한글 출력용 생성 중..." : "한글 인쇄용 PDF"}
-        </button>
-        <button
-          className="btn pdf-btn"
-          style={{ background: "#2f3a4d" }}
-          onClick={() => exportStructurePrintPDF("en")}
-          disabled={!!printBusy}
-          title={`${bookNo || 1}권 영문 출력용 PDF → pages/${T ? T.nameKo : topic}/${String(bookNo || 1).padStart(3, "0")}권/pdf/`}
-        >
-          {printBusy === "en" ? "영문 출력용 생성 중..." :
-            (printBusy && printBusy.startsWith && printBusy.startsWith("번역") ? printBusy : "영문 인쇄용 PDF")}
-        </button>
-        <button
-          className="btn pdf-btn"
           style={{ background: "#4f4536" }}
-          onClick={() => exportStructureWorkImage("ko")}
+          onClick={exportAllStructure}
           disabled={!!printBusy || !!workImageBusy}
-          title={`${bookNo || 1}권 작업본문 5스프레드 PNG → pages/${T ? T.nameKo : topic}/${String(bookNo || 1).padStart(3, "0")}권/pdf/`}
+          title={`${bookNo || 1}권 4개 파일 일괄 생성 (한/영 PDF + 한/영 이미지) → pages/${T ? T.nameKo : topic}/${String(bookNo || 1).padStart(3, "0")}권/pdf/`}
         >
-          {workImageBusy === "ko" ? "작업본문 이미지 생성 중..." : "작업본문 5스프레드 이미지"}
-        </button>
-        <button
-          className="btn pdf-btn"
-          style={{ background: "#354f46" }}
-          onClick={() => exportStructureWorkImage("en")}
-          disabled={!!printBusy || !!workImageBusy}
-          title={`${bookNo || 1}권 영문 작업본문 5스프레드 PNG → pages/${T ? T.nameKo : topic}/${String(bookNo || 1).padStart(3, "0")}권/pdf/`}
-        >
-          {printBusy && printBusy.startsWith && printBusy.startsWith("작업본문 EN") ? printBusy :
-            (workImageBusy === "en" ? "영문 작업본문 이미지 생성 중..." : "영문 작업본문 5스프레드 이미지")}
+          {printBusy ? `${printBusy.startsWith("번역") ? printBusy : (printBusy==="ko" ? "한글 인쇄용" : "영문 인쇄용")} PDF 생성 중...` 
+            : (workImageBusy ? `${workImageBusy==="ko" ? "한글" : "영문"} 5스프레드 이미지 생성 중...` 
+            : "인쇄용 PDF / 작업본문 이미지 (4개 파일 일괄 생성)")}
         </button>
       </div>
       <div className="print-impose-only book-structure-print-only">
@@ -1677,48 +1664,30 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
           onClick={() => setCurrentIdx(Math.min(total - 1, currentIdx + 1))}
         >›</button>
         <div className="nav-spacer"></div>
-        {/* 한글판 */}
-        <button
-          className="btn pdf-btn"
-          onClick={() => exportPDF("ko")}
-          disabled={!!busyKind}
-          title="한글판 16페이지 PDF 만들기 (pdf 폴더)"
-        >
-          {busyKind === "pdf" ? "한글 PDF 생성 중…" : "한글 PDF 만들기"}
-        </button>
+        <div className="nav-spacer"></div>
 
-        {/* 영문판 (로컬 번역) */}
+        {/* 4개 파일 일괄 생성 (한글/영문 16p PDF, 한글/영문 카드 PDF) */}
         <button
           className="btn pdf-btn"
-          style={{ background: "#2f3a4d" }}
-          onClick={() => exportPDF("en")}
+          style={{ background: "#2f4d4a" }}
+          onClick={async () => {
+            if (busyKind) return;
+            if (!confirm(`한/영 16p PDF와 한/영 10cm 카드 PDF 총 4개를 일괄 생성하시겠습니까?\n(시간이 다소 걸립니다)`)) return;
+            try {
+              await exportPDF("ko", { silent: true });
+              await exportPDF("en", { silent: true });
+              await exportCardPDF("ko", { sub: "", silent: true });
+              await exportCardPDF("en", { sub: "", silent: true });
+              alert("✅ 미리보기의 모든 PDF(총 4개)가 성공적으로 생성되었습니다.");
+            } catch (e) {
+              alert("일괄 생성 중 오류 발생: " + e.message);
+            }
+          }}
           disabled={!!busyKind}
-          title="영문판 16페이지 PDF 만들기 — 로컬 번역(한→영) · pdf 폴더 저장"
+          title="한글/영문 16p PDF 및 카드 PDF 4개 일괄 생성"
         >
-          {busyKind === "pdf-en" ? "영문 PDF 생성 중…"
-            : (busyKind.startsWith && busyKind.startsWith("번역") ? busyKind : "영문 PDF 만들기")}
+          {busyKind ? (busyKind.startsWith("번역") ? busyKind : "PDF 일괄 생성 중...") : "모든 미리보기 PDF (4개 파일 일괄 생성)"}
         </button>
-
-        {/* 카드 PDF (10cm 정사각 10장) — pages/<주제>/<권>/pdf/ 직접 저장 */}
-        <button
-          className="btn pdf-btn"
-          onClick={() => exportCardPDF("ko", { sub: "" })}
-          disabled={!!busyKind}
-          title="카드 PDF 한글 (10cm 카드 10장) → pages/<주제>/<권>/pdf/"
-        >
-          {busyKind === "card" ? "한글 카드 생성 중…" : "한글 카드 PDF"}
-        </button>
-        <button
-          className="btn pdf-btn"
-          style={{ background: "#2f3a4d" }}
-          onClick={() => exportCardPDF("en", { sub: "" })}
-          disabled={!!busyKind}
-          title="카드 PDF 영문 — 로컬 번역(한→영) · pages/<주제>/<권>/pdf/"
-        >
-          {busyKind === "card-en" ? "영문 카드 생성 중…"
-            : (busyKind.startsWith && busyKind.startsWith("번역") ? busyKind : "영문 카드 PDF")}
-        </button>
-
         <button
           className="btn pdf-btn ghost"
           onClick={exportPrintPDF}
