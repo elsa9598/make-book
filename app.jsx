@@ -495,6 +495,12 @@ function App() {
     await switchWorkspace(newTopic, newBookNo);
   };
 
+  // 주제와 권 동시 전환 (복구 패널의 레이스컨디션 방지)
+  const onChangeTopicAndBookNo = async (newTopic, newBookNo) => {
+    if (newTopic === topic && newBookNo === bookNo) return;
+    await switchWorkspace(newTopic, newBookNo);
+  };
+
   // Tweaks
   const [tweakValues, setTweak] = window.useTweaks(TWEAK_DEFAULTS);
 
@@ -925,6 +931,7 @@ function App() {
           onChangeBookNo={onChangeBookNo}
           topic={topic}
           onChangeTopic={onChangeTopic}
+          onChangeTopicAndBookNo={onChangeTopicAndBookNo}
         />
       )}
         </>

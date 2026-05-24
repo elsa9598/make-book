@@ -2121,9 +2121,10 @@ function PreviewPage({ page, meta, topic, coverImg, backImg, data, comicSide, si
                         value={explicitTitle ? (data?.body || source) : (fIdx >= 0 ? lines0.slice(fIdx + 1).join("\n") : "")}
                         onChange={(v) => setEditBuf(explicitTitle ? v : ((titleLine ? titleLine + "\n" : "") + v))}
                         onExpand={onExpandEdit}
+                        minFontSize={10}
                       />
                     ) : (
-                      <AutoFitBody text={bodyForCard} />
+                      <AutoFitBody text={bodyForCard} minFontSize={10} />
                     )}
                   </div>
                 </div>

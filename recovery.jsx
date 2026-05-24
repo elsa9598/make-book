@@ -13,7 +13,7 @@ function fileToSpreadIdx(file) {
   return (i >= 1 && i <= 5) ? i : null;
 }
 
-function RecoveryPanel({ completed, setCompleted, setToast, bookNo, onChangeBookNo, topic, onChangeTopic }) {
+function RecoveryPanel({ completed, setCompleted, setToast, bookNo, onChangeBookNo, topic, onChangeTopic, onChangeTopicAndBookNo }) {
   // workspaces = [{ topic, topicLabel, vol, key, data }, …]
   const [workspaces, setWorkspaces] = useStateRC([]);
   const [pageBk, setPageBk] = useStateRC({});
@@ -100,6 +100,29 @@ function RecoveryPanel({ completed, setCompleted, setToast, bookNo, onChangeBook
     await reload();
   };
 
+  const restoreFromDiskAutosave = async () => {
+    if (!window.ArtbookStore) return;
+    const T = window.TOPICS[topic];
+    const tName = T ? T.nameKo : topic;
+    const padBook = String(bookNo).padStart(3, "0");
+    const url = `/pages/${encodeURIComponent(tName)}/${padBook}권/autosave/workspace_autosave_fixed.json`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("디스크에 저장된 자동저장본이 없습니다. (" + res.status + ")");
+      const snap = await res.json();
+      if (!snap || typeof snap !== "object") throw new Error("데이터 형식이 올바르지 않습니다.");
+      
+      const key = window.QuoteLedger.workspaceKey(topic, bookNo);
+      await window.ArtbookStore.set(key, snap);
+      if (window.restoreCurrentWorkspace) await window.restoreCurrentWorkspace();
+      await reload();
+      setToast && setToast({ kind: "ok", text: `✓ ${tName} ${bookNo}권 디스크 백업본을 성공적으로 불러왔습니다.` });
+      setTimeout(() => setToast && setToast(null), 3000);
+    } catch (e) {
+      alert("디스크 백업 불러오기 실패:\n" + e.message);
+    }
+  };
+
   // 특정 주제·권으로 전환 + 자동 복원
   const switchToVolume = async (toTopic, vol) => {
     if (toTopic === topic && vol === bookNo) {
@@ -110,8 +133,10 @@ function RecoveryPanel({ completed, setCompleted, setToast, bookNo, onChangeBook
     const T = window.TOPICS[toTopic];
     const label = T ? T.nameKo : toTopic;
     if (!window.confirm(`${label} ${vol}권으로 전환하시겠습니까?\n(현재 작업물은 자동 저장됩니다)`)) return;
-    if (toTopic !== topic && onChangeTopic) {
-      // 주제 전환 후 그 주제의 vol로 다시 이동
+    
+    if (onChangeTopicAndBookNo) {
+      await onChangeTopicAndBookNo(toTopic, vol);
+    } else if (toTopic !== topic && onChangeTopic) {
       await onChangeTopic(toTopic);
       if (onChangeBookNo) await onChangeBookNo(vol);
     } else if (onChangeBookNo) {
@@ -215,6 +240,7 @@ function RecoveryPanel({ completed, setCompleted, setToast, bookNo, onChangeBook
         </div>
         <div className="usage-actions">
           <button className="btn ghost" onClick={restoreCurrentWork}>현재작업복구</button>
+          <button className="btn" style={{ marginLeft: 8 }} onClick={restoreFromDiskAutosave}>폴더 백업 불러오기</button>
         </div>
       </div>
 
