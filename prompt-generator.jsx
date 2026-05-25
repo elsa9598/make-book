@@ -244,18 +244,19 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
   const [ratio, setRatio] = useStatePG(mode === "comic" ? "9:16" : "1:1");
 
   const [copied, setCopied] = useStatePG(false);
-  const oduniIds = ["sangchu", "baechu", "yeolmu", "kkami", "kimchi"];
-  const promptCharacters = oduniIds
-    .map(id => window.CHARACTERS.find(c => c.id === id))
-    .filter(Boolean);
+  const promptCharacters = window.CHARACTERS || [];
 
   const toggleArr = (arr, setArr) => (v) =>
     arr.includes(v) ? setArr(arr.filter(x => x !== v)) : setArr([...arr, v]);
-  const selectHeroChar = (id) => {
-    setChars(prev => [id, ...prev
-      .map(x => ({ ggami: "kkami", gimchi: "kimchi" }[x] || x))
-      .filter(x => !oduniIds.includes(x))
-    ]);
+  const toggleChar = (id) => {
+    const alias = { ggami: "kkami", gimchi: "kimchi" };
+    const normalized = alias[id] || id;
+    setChars(prev => {
+      const norm = prev.map(x => alias[x] || x);
+      return norm.includes(normalized)
+        ? norm.filter(x => x !== normalized)
+        : [...norm, normalized];
+    });
   };
 
   // 본문 → 본문 전체를 영어 프롬프트에 반영 (최대 1500자)
@@ -280,10 +281,12 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
   useEffectPG(() => {
     const hero = ctx?.heroCharacter;
     if (!hero) return;
+    const alias = { ggami: "kkami", gimchi: "kimchi" };
+    const normalized = alias[hero] || hero;
     setChars(prev => {
-      const normalized = prev.map(id => ({ ggami: "kkami", gimchi: "kimchi" }[id] || id));
-      const withoutOtherOduni = normalized.filter(id => !["sangchu", "baechu", "yeolmu", "kkami", "kimchi"].includes(id));
-      return [hero, ...withoutOtherOduni];
+      const norm = prev.map(id => alias[id] || id);
+      if (norm.includes(normalized)) return norm;
+      return [normalized, ...norm];
     });
   }, [ctx?.heroCharacter, mode]);
 
@@ -313,10 +316,12 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
       const s = await window.ArtbookStore.get(DKEY);
       if (alive && s && typeof s === "object") {
         if (s.chars) {
-          const normalized = s.chars.map(id => ({ ggami: "kkami", gimchi: "kimchi" }[id] || id));
+          const alias = { ggami: "kkami", gimchi: "kimchi" };
+          const normalized = s.chars.map(id => alias[id] || id);
           const hero = ctx?.heroCharacter;
-          setChars(hero
-            ? [hero, ...normalized.filter(id => !oduniIds.includes(id))]
+          const heroNorm = hero ? (alias[hero] || hero) : null;
+          setChars(heroNorm && !normalized.includes(heroNorm)
+            ? [heroNorm, ...normalized]
             : normalized
           );
         }
@@ -419,7 +424,7 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
         <div className="pg-config">
           <PromptSection
             title="캐릭터"
-            subtitle="오둥이 주인공 선택 · 최종 영어 프롬프트에 바로 반영됩니다"
+            subtitle="복수 선택 가능 · 선택된 캐릭터의 외모가 영어 프롬프트에 반영됩니다"
           >
             <div className="char-grid">
               {promptCharacters.map(c => (
@@ -427,7 +432,7 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
                   key={c.id}
                   char={c}
                   selected={chars.includes(c.id)}
-                  onToggle={() => selectHeroChar(c.id)}
+                  onToggle={() => toggleChar(c.id)}
                 />
               ))}
             </div>
