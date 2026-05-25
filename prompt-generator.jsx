@@ -174,7 +174,7 @@ function buildImagePrompt(s) {
     if (T) themeLines.push(`Philosophical theme: ${T.name} philosophy (${T.sub}).`);
     if (s.ctx?.category) themeLines.push(`Category: ${s.ctx.category}.`);
     if (s.ctx?.quote) themeLines.push(`Quote (translate the FEELING, not the words): "${s.ctx.quote}"`);
-    if (s.ctx?.bodySnippet) themeLines.push(`Narrative context: ${s.ctx.bodySnippet}`);
+    // 본문내용(bodySnippet)은 이미지 생성에 방해되므로 이미지 프롬프트에서는 제외
     lines.push(`[SUBJECT MEANING]\n${themeLines.join("\n")}`);
   }
 
