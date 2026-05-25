@@ -157,7 +157,7 @@ function QuotePicker(props) {
     const hero = heroName || "오둥이";
     const text = `주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
 "${quote.trim()}"
-구체적인 배경, 시간대, 빛의 표현, 상세한 카메라뷰와 구도, 얕은 심도(포커싱, 아웃포커싱 확실히 구분)로 구성한 스토리 만들어줘`;
+구체적인 배경, 시간대, 빛의 표현, 상세한 카메라뷰와 구도, 얕은 심도(포커싱, 아웃포커싱 확실히 구분)로 구성한 정지컷 설명해줘`;
     await copyToClipboard(text, setCopiedImg);
   };
 
