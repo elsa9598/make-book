@@ -402,7 +402,7 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
     <div className="pg-page">
       {/* 헤더 */}
       <div className="pg-header">
-        <button className="pg-back" onClick={guardedBack}>‹ 작업실로 돌아가기</button>
+
         <div className="pg-title-block">
           <h2>{title}</h2>
           <span className="pg-subtitle">{subtitle}</span>

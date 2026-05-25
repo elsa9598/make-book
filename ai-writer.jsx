@@ -507,33 +507,7 @@ function AiWriter({ topic, category, quote, output, setOutput, retryLog, setRetr
         </div>
       )}
 
-      {/* 프롬프트 생성기 링크 */}
-      <div className="prompt-link-row">
-        <button
-          className="prompt-link image-link"
-          onClick={() => window.openPromptPage && window.openPromptPage("image")}
-          title="이 페이지의 명언·본문을 반영한 1:1 이미지 생성용 영어 프롬프트"
-        >
-          <span className="prompt-link-icon">⌘</span>
-          <div className="prompt-link-text">
-            <div className="prompt-link-title">이미지 프롬프트 생성기</div>
-            <div className="prompt-link-sub">1:1 상징 일러스트용 · 캐릭터·배경·화풍 선택</div>
-          </div>
-          <span className="prompt-link-arrow">→</span>
-        </button>
-        <button
-          className="prompt-link comic-link"
-          onClick={() => window.openPromptPage && window.openPromptPage("comic")}
-          title="이 페이지의 명언·본문을 반영한 9:16 4컷 만화용 영어 프롬프트"
-        >
-          <span className="prompt-link-icon">▦</span>
-          <div className="prompt-link-text">
-            <div className="prompt-link-title">4컷 만화 프롬프트 생성기</div>
-            <div className="prompt-link-sub">9:16 4컷 · 전개·발단·위기·결말 · 시네마틱 수채화</div>
-          </div>
-          <span className="prompt-link-arrow">→</span>
-        </button>
-      </div>
+
     </div>
   );
 }
