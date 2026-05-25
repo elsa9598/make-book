@@ -136,7 +136,8 @@ function QuotePicker(props) {
 "${quote.trim()}"
 한국어 **정확히 7문장**, 총 **150자 이내**로 짧게 (한 문장 한 줄)
 명언을 직접 인용하거나 반복 설명하지 말고,
-이야기로 명언의 진실을 드러낼 것`;
+이야기로 명언의 진실을 드러낼 것
+감동적이고 깨닫게 하는 내용의 스토리로 구성`;
     await copyToClipboard(text, setCopied);
   };
 
