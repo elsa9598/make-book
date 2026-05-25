@@ -147,7 +147,7 @@ function QuotePicker(props) {
     const hero = heroName || "오둥이";
     const text = `주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
 "${quote.trim()}"
-4컷만화 발단-전개-위기-결말로 스토리를 만들어줘`;
+위의 내용으로 4컷만화 발단-전개-위기-결말로 스토리를 만들어줘`;
     await copyToClipboard(text, setCopiedComic);
   };
 
