@@ -110,7 +110,32 @@ function App() {
   };
   const applyWorkspaceSnapshot = (snap, fallback = {}) => {
     if (!snap || typeof snap !== "object") return;
-    if (snap.completed) setCompleted(snap.completed);
+    
+    // 기존 데이터 마이그레이션: Base64 -> URL 변환 (IndexedDB 용량/메모리 확보)
+    const getMigratedUrl = (u, spIdx, isComic) => {
+      if (u && u.startsWith("data:")) {
+        const curSp = window.BOOK_SPREADS[spIdx];
+        if (curSp) {
+          const tName = window.TOPICS[topic] ? window.TOPICS[topic].nameKo : topic;
+          const padBook = String(bookNo).padStart(3, "0");
+          const ext = splitDataUrl(u)?.ext || "jpg";
+          const id = String(isComic ? curSp.leftPage : curSp.rightPage).padStart(3, "0") + (isComic ? "_a" : "_b");
+          return `/pages/${encodeURIComponent(tName)}/${padBook}권/autosave/${id}.${ext}`;
+        }
+      }
+      return u;
+    };
+
+    if (snap.completed) {
+      const migratedCompleted = { ...snap.completed };
+      Object.keys(migratedCompleted).forEach(k => {
+        const d = { ...migratedCompleted[k] };
+        if (d.comicImg) d.comicImg = getMigratedUrl(d.comicImg, k, true);
+        if (d.illustImg) d.illustImg = getMigratedUrl(d.illustImg, k, false);
+        migratedCompleted[k] = d;
+      });
+      setCompleted(migratedCompleted);
+    }
     if (snap.coverImg !== undefined) setCoverImg(snap.coverImg);
     if (snap.backImg !== undefined) setBackImg(snap.backImg);
     if (snap.oduniImg !== undefined) setOduniImg(snap.oduniImg);
@@ -127,8 +152,8 @@ function App() {
     if (snap.activeVer != null) setActiveVer(typeof snap.activeVer === "number" ? snap.activeVer : null);
     if (snap.pickedComic !== undefined) setPickedComic(snap.pickedComic);
     if (snap.pickedIllust !== undefined) setPickedIllust(snap.pickedIllust);
-    if (snap.comicImg !== undefined) setComicImg(snap.comicImg);
-    if (snap.illustImg !== undefined) setIllustImg(snap.illustImg);
+    if (snap.comicImg !== undefined) setComicImg(getMigratedUrl(snap.comicImg, snap.currentSpread || fallback.currentSpread || 1, true));
+    if (snap.illustImg !== undefined) setIllustImg(getMigratedUrl(snap.illustImg, snap.currentSpread || fallback.currentSpread || 1, false));
     if (snap.savedAt !== undefined) setSavedAt(snap.savedAt);
   };
   const postAutosaveFiles = (meta, pages) => {
@@ -226,23 +251,36 @@ function App() {
     saveBookFiles([{ id: aId, files: [{ name: aId + ".txt", text }] }])
       .catch(e => console.warn("[body-backup] 저장 실패:", e.message));
   };
-  const saveCurrentImageFile = (kind, dataUrl) => {
+  const saveCurrentImageFile = async (kind, dataUrl) => {
     const curSp = window.BOOK_SPREADS[currentSpread];
     const img = splitDataUrl(dataUrl);
-    if (!curSp || curSp.leftMeta.section !== "body" || !img) return;
+    if (!curSp || curSp.leftMeta.section !== "body" || !img) return null;
     const id = kind === "comic"
       ? String(curSp.leftPage).padStart(3, "0") + "_a"
       : String(curSp.rightPage).padStart(3, "0") + "_b";
-    saveBookFiles([{ id, files: [{ name: id + "." + img.ext, b64: img.b64 }] }])
-      .catch(e => console.warn("[image-backup] 저장 실패:", e.message));
+    try {
+      await saveBookFiles([{ id, files: [{ sub: "autosave", name: id + "." + img.ext, b64: img.b64 }] }]);
+      const padBook = String(bookNo).padStart(3, "0");
+      const tName = window.TOPICS[topic] ? window.TOPICS[topic].nameKo : topic;
+      return `/pages/${encodeURIComponent(tName)}/${padBook}권/autosave/${id}.${img.ext}?t=${Date.now()}`;
+    } catch(e) {
+      console.warn("[image-backup] 저장 실패:", e.message);
+      return null;
+    }
   };
-  const setComicImgAndBackup = (u) => {
+  const setComicImgAndBackup = async (u) => {
     setComicImg(u);
-    if (u) saveCurrentImageFile("comic", u);
+    if (u && u.startsWith("data:")) {
+      const url = await saveCurrentImageFile("comic", u);
+      if (url) setComicImg(url);
+    }
   };
-  const setIllustImgAndBackup = (u) => {
+  const setIllustImgAndBackup = async (u) => {
     setIllustImg(u);
-    if (u) saveCurrentImageFile("illust", u);
+    if (u && u.startsWith("data:")) {
+      const url = await saveCurrentImageFile("illust", u);
+      if (url) setIllustImg(url);
+    }
   };
   const resetCurrentBookAfterFinalize = async () => {
     clearTimeout(saveTimer.current);
@@ -715,8 +753,12 @@ function App() {
       };
       const aId = pad(sp.leftPage) + "_a";
       const bId = pad(sp.rightPage) + "_b";
-      const aImg = splitDataUrl(comicImg);
-      const bImg = splitDataUrl(illustImg);
+      const getExt = (u) => { const m = u.match(/\.([a-z0-9]+)(?:[\?#]|$)/i); return m ? m[1] : "jpg"; };
+      const aImgUrl = comicImg && !comicImg.startsWith("data:") ? comicImg : null;
+      const bImgUrl = illustImg && !illustImg.startsWith("data:") ? illustImg : null;
+      const aImgB64 = comicImg && comicImg.startsWith("data:") ? splitDataUrl(comicImg) : null;
+      const bImgB64 = illustImg && illustImg.startsWith("data:") ? splitDataUrl(illustImg) : null;
+      
       const payload = {
         topic: topicLabel,
         book: bookLabel,
@@ -726,13 +768,15 @@ function App() {
             id: aId,
             files: [
               { name: aId + ".txt", text: body },
-              ...(aImg ? [{ name: aId + "." + aImg.ext, b64: aImg.b64 }] : [])
+              ...(aImgB64 ? [{ name: aId + "." + aImgB64.ext, b64: aImgB64.b64 }] : 
+                 (aImgUrl ? [{ name: aId + "." + getExt(aImgUrl), copyFrom: aImgUrl }] : []))
             ]
           },
           {
             id: bId,
             files: [
-              ...(bImg ? [{ name: bId + "." + bImg.ext, b64: bImg.b64 }] : [])
+              ...(bImgB64 ? [{ name: bId + "." + bImgB64.ext, b64: bImgB64.b64 }] : 
+                 (bImgUrl ? [{ name: bId + "." + getExt(bImgUrl), copyFrom: bImgUrl }] : []))
             ]
           }
         ]

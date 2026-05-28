@@ -110,6 +110,10 @@ function savePage(req, res) {
             const full = path.join(tgtDir, name);
             if (typeof f.text === "string") fs.writeFileSync(full, f.text, "utf8");
             else if (f.b64) fs.writeFileSync(full, Buffer.from(f.b64, "base64"));
+            else if (f.copyFrom) {
+              const srcPath = path.join(ROOT, path.normalize(decodeURIComponent(f.copyFrom.split("?")[0])));
+              if (fs.existsSync(srcPath) && srcPath !== full) fs.copyFileSync(srcPath, full);
+            }
             else return;
             written.push(path.relative(ROOT, full));
           });
@@ -135,6 +139,10 @@ function savePage(req, res) {
           const full = path.join(tgtDir, name);
           if (typeof f.text === "string") fs.writeFileSync(full, f.text, "utf8");
           else if (f.b64) fs.writeFileSync(full, Buffer.from(f.b64, "base64"));
+          else if (f.copyFrom) {
+            const srcPath = path.join(ROOT, path.normalize(decodeURIComponent(f.copyFrom.split("?")[0])));
+            if (fs.existsSync(srcPath) && srcPath !== full) fs.copyFileSync(srcPath, full);
+          }
           else return;
           written.push(path.join("pages", book, id, name));
         });
