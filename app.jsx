@@ -477,12 +477,57 @@ function App() {
         // 2) 새 주제+권 데이터 로드
         const next = await window.ArtbookStore.get(window.QuoteLedger.workspaceKey(newTopic, newBookNo));
         if (next && typeof next === "object") {
-          setCompleted(next.completed || {});
+          const T = window.TOPICS[newTopic] || window.TOPICS[newTopic || "talmud"];
+          const tName = T ? T.nameKo : (newTopic || "탈무드");
+          const padBook = String(newBookNo).padStart(3, "0");
+          const migrate = (u, spIdx, isComic) => {
+            if (u && typeof u === "string" && (u.startsWith("blob:") || u.startsWith("data:"))) {
+              const curSp = window.BOOK_SPREADS[spIdx];
+              if (curSp) {
+                const ext = (u.indexOf("image/png") > 0) ? "png" : "jpg";
+                const id = String(isComic ? curSp.leftPage : curSp.rightPage).padStart(3, "0") + (isComic ? "_a" : "_b");
+                return `/pages/${encodeURIComponent(tName)}/${padBook}권/autosave/${id}.${ext}`;
+              }
+            }
+            return u;
+          };
+
+          const migratedCompleted = { ...(next.completed || {}) };
+          Object.keys(migratedCompleted).forEach(k => {
+            const d = { ...migratedCompleted[k] };
+            if (d.comicImg) d.comicImg = migrate(d.comicImg, k, true);
+            if (d.illustImg) d.illustImg = migrate(d.illustImg, k, false);
+            migratedCompleted[k] = d;
+          });
+
+          setCompleted(migratedCompleted);
           setCoverImg(next.coverImg || null);
           setBackImg(next.backImg || null);
           setOduniImg(next.oduniImg || null);
           setHeroCharacter(next.heroCharacter || "sangchu");
           setSavedAt(next.savedAt || null);
+          
+          const cur1 = migratedCompleted[1];
+          if (cur1) {
+            setBody(cur1.body || "");
+            setPickedComic(cur1.comicFile || null);
+            setPickedIllust(cur1.illustFile || null);
+            setComicImg(cur1.comicImg || null);
+            setIllustImg(cur1.illustImg || null);
+            setVersions(Array.isArray(cur1.versions) ? cur1.versions : []);
+            setActiveVer(typeof cur1.activeVerIdx === "number" ? cur1.activeVerIdx : null);
+            if (cur1.quote != null) setQuote(cur1.quote);
+            if (cur1.category != null) setCategory(cur1.category);
+          } else {
+            setBody("");
+            setPickedComic(null);
+            setPickedIllust(null);
+            setComicImg(null);
+            setIllustImg(null);
+            setVersions([]);
+            setActiveVer(null);
+            setQuote("");
+          }
         } else {
           setCompleted({});
           setCoverImg(null);
@@ -490,6 +535,15 @@ function App() {
           setOduniImg(null);
           setHeroCharacter("sangchu");
           setSavedAt(null);
+          
+          setBody("");
+          setPickedComic(null);
+          setPickedIllust(null);
+          setComicImg(null);
+          setIllustImg(null);
+          setVersions([]);
+          setActiveVer(null);
+          setQuote("");
         }
       }
     } catch (e) {
@@ -499,13 +553,6 @@ function App() {
     // 3) 작업실 상태 리셋
     setCurrentSpread(1);
     setPreviewSpread(0);
-    setBody("");
-    setVersions([]);
-    setActiveVer(null);
-    setPickedComic(null);
-    setPickedIllust(null);
-    setComicImg(null);
-    setIllustImg(null);
     setRetryLog([]);
 
     // 4) 주제·권 갱신
@@ -845,14 +892,60 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div className="brand">
+        <div className="brand" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div className="brand-mark">아트북 제작</div>
+          <button 
+            className="btn"
+            style={{ fontSize: 11, background: "#a83232", color: "#fff", border: "none", padding: "4px 8px", borderRadius: 4, cursor: "pointer" }}
+            onClick={async () => {
+              if (!confirm("현재 권의 PDF/이미지 8종을 전체 생성하시겠습니까?\n(화면이 자동으로 전환되며 시간이 다소 소요됩니다)")) return;
+              
+              const currentTab = tab;
+              
+              try {
+                // 1. 미리보기 4종 생성
+                setToast({ kind: "ok", text: "미리보기 산출물(4종) 생성 중..." });
+                window.gotoTab("preview");
+                await new Promise(r => setTimeout(r, 1000));
+                if (window._exportPreview4) {
+                  await window._exportPreview4();
+                } else {
+                  console.warn("미리보기 내보내기 함수를 찾을 수 없습니다.");
+                }
+                
+                // 2. 책구조 4종 생성
+                setToast({ kind: "ok", text: "책구조 산출물(4종) 생성 중..." });
+                window.gotoTab("book");
+                await new Promise(r => setTimeout(r, 1000));
+                if (window._exportStructure4) {
+                  await window._exportStructure4();
+                } else {
+                  console.warn("책구조 내보내기 함수를 찾을 수 없습니다.");
+                }
+                
+                setToast({ kind: "ok", text: "✅ 8종 생성 완료!" });
+                setTimeout(() => setToast(null), 3000);
+                
+                // 3. 완료 후 PDF 뷰어로 이동
+                window.gotoTab("pdf-viewer");
+                
+              } catch (e) {
+                console.error(e);
+                alert("일괄 생성 중 오류 발생: " + e.message);
+                setToast(null);
+                window.gotoTab(currentTab);
+              }
+            }}
+          >
+            🚀 8개 전체파일 생성
+          </button>
         </div>
         <div className="tabs">
           <button className={"tab" + (tab === "workshop" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("workshop"); }}>작업실</button>
           <button className={"tab" + (tab === "book" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("book"); }}>책 구조</button>
           <button className={"tab" + (tab === "preview" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("preview"); }}>미리보기</button>
           <button className={"tab" + (tab === "usage" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("usage"); }}>사용 현황</button>
+          <button className={"tab" + (tab === "pdf-viewer" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("pdf-viewer"); }} style={{color:"#27633b"}}>PDF 뷰어</button>
           <button className={"tab" + (tab === "recovery" && !promptPage ? " active" : "")} onClick={() => { setPromptPage(null); setTab("recovery"); }} style={{color:"#a83232"}}>복구</button>
         </div>
         <div className="header-meta">
@@ -976,6 +1069,13 @@ function App() {
           topic={topic}
           onChangeTopic={onChangeTopic}
           onChangeTopicAndBookNo={onChangeTopicAndBookNo}
+        />
+      )}
+
+      {tab === "pdf-viewer" && (
+        <window.PdfViewer
+          currentTopic={topic}
+          onChangeTopic={onChangeTopic}
         />
       )}
         </>
@@ -1114,7 +1214,16 @@ function Workshop(props) {
           <div className="field">
             <textarea
               value={quote}
-              onChange={e => setQuote(e.target.value)}
+              onChange={e => {
+                const q = e.target.value;
+                setQuote(q);
+                setBody(prev => {
+                  if (!prev) return q + "\n\n";
+                  const lines = prev.split("\n");
+                  lines[0] = q;
+                  return lines.join("\n");
+                });
+              }}
               placeholder="이 페이지의 출발이 될 한 줄을 입력하세요"
             ></textarea>
           </div>
@@ -1125,7 +1234,15 @@ function Workshop(props) {
             topic={topic}
             category={category}
             quote={quote}
-            setQuote={setQuote}
+            setQuote={(q) => {
+              setQuote(q);
+              setBody(prev => {
+                if (!prev) return q + "\n\n";
+                const lines = prev.split("\n");
+                lines[0] = q;
+                return lines.join("\n");
+              });
+            }}
             ledger={ledger}
             bookNo={bookNo}
             currentSpread={currentSpread}

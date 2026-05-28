@@ -7,6 +7,7 @@ const path = require("path");
 
 const PORT = 8787;
 const ROOT = __dirname;
+const PAGES_DIR = "G:\\내 드라이브\\Claude_works\\make_book\\pages";
 const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -51,8 +52,8 @@ function topicBookDir(j) {
   const bookRaw = j.book || j.bookLabel || "";
   const book = safeName(bookRaw).slice(0, 40);
   if (!topic || !book) return null;
-  const full = path.resolve(ROOT, "pages", topic, book);
-  const base = path.resolve(ROOT, "pages");
+  const full = path.resolve(PAGES_DIR, topic, book);
+  const base = path.resolve(PAGES_DIR);
   if (!full.startsWith(base)) return null;
   fs.mkdirSync(full, { recursive: true });
   return full;
@@ -68,7 +69,7 @@ function savePdf(req, res) {
       let name = safeName(j.filename || "artbook.pdf");
       if (!name.toLowerCase().endsWith(".pdf")) name += ".pdf";
       const bookDir = topicBookDir(j);
-      const dir = bookDir ? path.join(bookDir, "pdf") : path.join(ROOT, "pdf");
+      const dir = bookDir ? path.join(bookDir, "pdf") : path.join(PAGES_DIR, "pdf");
       fs.mkdirSync(dir, { recursive: true });
       const buf = Buffer.from(String(j.data || ""), "base64");
       const full = path.join(dir, name);
@@ -126,7 +127,7 @@ function savePage(req, res) {
       (j.pages || []).forEach(pg => {
         const id = safeName(pg.id).slice(0, 40);              // 예: 009_a
         if (!id) return;
-        const dir = path.join(ROOT, "pages", book, id);
+        const dir = path.join(PAGES_DIR, book, id);
         fs.mkdirSync(dir, { recursive: true });
         (pg.files || []).forEach(f => {
           const name = safeName(f.name);
@@ -148,7 +149,7 @@ function savePage(req, res) {
         });
       });
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ ok: true, root: path.join(ROOT, "pages", book), written }));
+      res.end(JSON.stringify({ ok: true, root: path.join(PAGES_DIR, book), written }));
     } catch (e) {
       res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
       res.end(JSON.stringify({ ok: false, error: e.message }));
@@ -174,7 +175,7 @@ function deletePage(req, res) {
             const full = path.join(bookDir, sid + ext);
             if (full.startsWith(bookDir) && fs.existsSync(full)) {
               fs.rmSync(full, { force: true });
-              removed.push(path.relative(ROOT, full));
+              removed.push(path.relative(PAGES_DIR, full));
             }
           });
         });
@@ -184,8 +185,8 @@ function deletePage(req, res) {
       (j.ids || []).forEach(id => {
         const sid = safeName(id).slice(0, 40);
         if (!sid || !book) return;
-        const dir = path.join(ROOT, "pages", book, sid);
-        if (dir.startsWith(path.join(ROOT, "pages")) && fs.existsSync(dir)) {
+        const dir = path.join(PAGES_DIR, book, sid);
+        if (dir.startsWith(PAGES_DIR) && fs.existsSync(dir)) {
           fs.rmSync(dir, { recursive: true, force: true });
           removed.push(path.join("pages", book, sid));
         }
@@ -212,20 +213,64 @@ const server = http.createServer((req, res) => {
   if (req.url.split("?")[0] === "/save-page" && req.method === "POST") {
     return savePage(req, res);
   }
+  if (req.url.split("?")[0] === "/api/book-files" && req.method === "GET") {
+    try {
+      const urlObj = new URL(req.url, `http://${req.headers.host}`);
+      const topic = urlObj.searchParams.get("topic");
+      const book = urlObj.searchParams.get("book");
+      if (!topic || !book) {
+        res.writeHead(400); return res.end("Missing topic or book");
+      }
+      const bookDir = path.join(PAGES_DIR, safeName(topic), safeName(book).slice(0, 40));
+      const pdfDir = path.join(bookDir, "pdf");
+      let files = [];
+      if (fs.existsSync(pdfDir)) {
+        files = fs.readdirSync(pdfDir).filter(f => fs.statSync(path.join(pdfDir, f)).isFile());
+      }
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      return res.end(JSON.stringify({ files }));
+    } catch(e) {
+      res.writeHead(500); return res.end(e.message);
+    }
+  }
+
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath === "/") urlPath = "/index.html";
-  const filePath = path.join(ROOT, path.normalize(urlPath));
-  if (!filePath.startsWith(ROOT)) { res.writeHead(403); return res.end("Forbidden"); }
-  fs.readFile(filePath, (err, data) => {
-    if (err) { res.writeHead(404); return res.end("Not found: " + urlPath); }
-    const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, {
-      "Content-Type": TYPES[ext] || "application/octet-stream",
-      "Cache-Control": "no-store",
-      "Access-Control-Allow-Origin": "*"
+  
+  let filePath;
+  if (urlPath.startsWith("/pages/")) {
+    filePath = path.join(PAGES_DIR, urlPath.slice(7));
+    if (!filePath.startsWith(PAGES_DIR)) { res.writeHead(403); return res.end("Forbidden"); }
+  } else {
+    filePath = path.join(ROOT, path.normalize(urlPath));
+    if (!filePath.startsWith(ROOT)) { res.writeHead(403); return res.end("Forbidden"); }
+  }
+
+  const serveFile = (p, res, reqExt) => {
+    fs.readFile(p, (err, data) => {
+      if (err) {
+        const ext = path.extname(p).toLowerCase();
+        if (reqExt !== "fallback") {
+          if (ext === ".jpg" || ext === ".jpeg") {
+            const altPath = p.replace(/\.jpe?g$/i, ".png");
+            if (fs.existsSync(altPath)) return serveFile(altPath, res, "fallback");
+          } else if (ext === ".png") {
+            const altPath = p.replace(/\.png$/i, ".jpg");
+            if (fs.existsSync(altPath)) return serveFile(altPath, res, "fallback");
+          }
+        }
+        res.writeHead(404); return res.end("Not found: " + urlPath);
+      }
+      const actualExt = path.extname(p).toLowerCase();
+      res.writeHead(200, {
+        "Content-Type": TYPES[actualExt] || "application/octet-stream",
+        "Cache-Control": "no-store",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(data);
     });
-    res.end(data);
-  });
+  };
+  serveFile(filePath, res, "");
 });
 
 server.listen(PORT, "127.0.0.1", () => {

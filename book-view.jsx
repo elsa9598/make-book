@@ -4,7 +4,7 @@ const { useState: useStateBV, useRef: useRefBV } = React;
 
 /* ────────── 자동 폰트 축소 ────────── */
 // 한 페이지에 맞도록 폰트 크기를 줄여서 fit
-function AutoFitBody({ text, maxFontSize = 60, minFontSize = 22 }) {
+function AutoFitBody({ text, titleText, maxFontSize = 60, minFontSize = 22 }) {
   const wrapRef = useRefBV();
   const innerRef = useRefBV();
   const [fontSize, setFontSize] = useStateBV(maxFontSize);
@@ -35,11 +35,19 @@ function AutoFitBody({ text, maxFontSize = 60, minFontSize = 22 }) {
       ro.observe(wrapRef.current);
     }
     return () => { clearTimeout(t1); ro && ro.disconnect(); };
-  }, [text, maxFontSize, minFontSize]);
+  }, [text, titleText, maxFontSize, minFontSize]);
 
   return (
     <div ref={wrapRef} className="text-body-wrap">
       <div ref={innerRef} className="text-body" style={{fontSize}}>
+        {titleText && (
+          <div style={{
+            fontWeight: 800,
+            marginBottom: "0.5em",
+            paddingBottom: "0.3em",
+            borderBottom: "1px solid var(--rule)"
+          }}>{titleText}</div>
+        )}
         {text || "(이 페이지의 본문이 아직 작성되지 않았습니다.)"}
       </div>
     </div>
@@ -174,8 +182,7 @@ const BOOKLET_READING_SPREADS = [
   { left: { folio: 8, slot: 5 }, right: { folio: 9, slot: 6 } },
   { left: { folio: 10, slot: 7 }, right: { folio: 11, slot: 8 } },
   { left: { folio: 12, slot: 9 }, right: { folio: 13, slot: 10 } },
-  { left: { folio: 14, slot: null }, right: { folio: 15, slot: "oduni-photo" } },
-  { left: { folio: 16, slot: "back-inner" }, right: { folio: null, slot: null } },
+  { left: { folio: 14, slot: "back-inner" }, right: { folio: null, slot: null } },
 ];
 
 const PDF_PAPER = "#f6ecd6";          // 화면 미리보기용 종이톤
@@ -210,10 +217,24 @@ function splitTitleBodyText(text) {
   const lines = source.split("\n");
   const firstIdx = lines.findIndex(line => line.trim().length > 0);
   if (firstIdx < 0) return { title: "", body: source };
-  return {
-    title: lines[firstIdx].trim(),
-    body: lines.slice(firstIdx + 1).join("\n").replace(/\s+$/, "")
-  };
+  
+  let title = lines[firstIdx].trim();
+  let body = lines.slice(firstIdx + 1).join("\n").replace(/\s+$/, "");
+
+  // 본문과 명언이 엔터 없이 한 줄로 묶여서 너무 긴 경우, 첫 문장(명언)만 추출
+  if (!body && title.length > 60) {
+    const match = title.match(/^[^.!?]+[.!?]+["']?/);
+    if (match) {
+      title = match[0].trim();
+      body = source.slice(title.length).trim();
+    } else {
+      body = source;
+    }
+  } else if (!body) {
+    body = title;
+  }
+  
+  return { title, body };
 }
 
 async function buildEnglishCompletedForPdf(src, T, onProg) {
@@ -512,15 +533,22 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
     if (printBusy || workImageBusy) return;
     if (!confirm(`한/영 인쇄용 PDF와 한/영 5스프레드 이미지 총 4개를 일괄 생성하시겠습니까?\n(시간이 다소 걸립니다)`)) return;
     try {
-      await exportStructurePrintPDF("ko", { silent: true });
-      await exportStructurePrintPDF("en", { silent: true });
-      await exportStructureWorkImage("ko", { silent: true });
-      await exportStructureWorkImage("en", { silent: true });
+      await window._exportStructure4();
       alert("✅ 책구조의 모든 PDF 및 이미지가 성공적으로 생성되었습니다.");
     } catch (e) {
       alert("일괄 생성 중 오류 발생: " + e.message);
     }
   };
+
+  {(() => {
+    window._exportStructure4 = async () => {
+      await exportStructurePrintPDF("ko", { silent: true });
+      await exportStructurePrintPDF("en", { silent: true });
+      await exportStructureWorkImage("ko", { silent: true });
+      await exportStructureWorkImage("en", { silent: true });
+    };
+    return null;
+  })()}
 
   return (
     <div className="book-grid">
@@ -1575,7 +1603,23 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
     : completed;
 
   return (
-    <div className="preview-stage" ref={stageRef}>
+    <div className="preview-stage" ref={stageRef} style={{ position: "relative" }}>
+      <button
+        className="nav-arrow"
+        style={{ position: "absolute", left: "30px", top: "45%", transform: "translateY(-50%)", zIndex: 10, width: "64px", height: "64px", fontSize: "32px", background: "rgba(255, 248, 230, 0.9)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
+        disabled={currentIdx === 0}
+        onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
+        title="이전 페이지"
+      >‹</button>
+
+      <button
+        className="nav-arrow"
+        style={{ position: "absolute", right: "30px", top: "45%", transform: "translateY(-50%)", zIndex: 10, width: "64px", height: "64px", fontSize: "32px", background: "rgba(255, 248, 230, 0.9)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
+        disabled={currentIdx === total - 1}
+        onClick={() => setCurrentIdx(Math.min(total - 1, currentIdx + 1))}
+        title="다음 페이지"
+      >›</button>
+
       <div className="pv-scaler" style={{ height: (1400 * pvScale) + "px" }}>
       <div className="book-spread pv-fixed a4-page" style={{
         width: 1980, height: 1400,
@@ -1624,12 +1668,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
           >{Math.round(pvZoom * 100)}%</button>
         </div>
         <div className="nav-spacer"></div>
-        <button
-          className="nav-arrow"
-          disabled={currentIdx === 0}
-          onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
-        >‹</button>
-        <span className="pages">
+        <span className="pages" style={{ fontSize: "13px", fontWeight: "600", padding: "0 12px" }}>
           {previewLayout.left.folio && previewLayout.right.folio
             ? `p.${previewLayout.left.folio} – p.${previewLayout.right.folio}`
             : previewLayout.right.folio
@@ -1658,11 +1697,15 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
             저장
           </button>
         )}
-        <button
-          className="nav-arrow"
-          disabled={currentIdx === total - 1}
-          onClick={() => setCurrentIdx(Math.min(total - 1, currentIdx + 1))}
-        >›</button>
+        {(() => {
+          window._exportPreview4 = async () => {
+            await exportPDF("ko", { silent: true });
+            await exportPDF("en", { silent: true });
+            await exportCardPDF("ko", { sub: "", silent: true });
+            await exportCardPDF("en", { sub: "", silent: true });
+          };
+          return null;
+        })()}
         <div className="nav-spacer"></div>
         <div className="nav-spacer"></div>
 
@@ -1674,10 +1717,7 @@ function BookPreview({ spreads, completed, setCompleted, onPreviewBodyChange, to
             if (busyKind) return;
             if (!confirm(`한/영 16p PDF와 한/영 10cm 카드 PDF 총 4개를 일괄 생성하시겠습니까?\n(시간이 다소 걸립니다)`)) return;
             try {
-              await exportPDF("ko", { silent: true });
-              await exportPDF("en", { silent: true });
-              await exportCardPDF("ko", { sub: "", silent: true });
-              await exportCardPDF("en", { sub: "", silent: true });
+              await window._exportPreview4();
               alert("✅ 미리보기의 모든 PDF(총 4개)가 성공적으로 생성되었습니다.");
             } catch (e) {
               alert("일괄 생성 중 오류 발생: " + e.message);
@@ -2194,7 +2234,7 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
         }}>
           <span style={{ fontSize: "50px", color: "var(--topic-accent, #8b7355)", lineHeight: 1 }}>⚜</span>
           <span style={{
-            fontSize: "50px", letterSpacing: "0",
+            fontSize: "50px", letterSpacing: isEn ? "0.15em" : "0",
             color: "var(--ink, #2b1d13)", textTransform: "uppercase",
             fontFamily: "var(--font-serif, serif)",
             lineHeight: 1.15,
@@ -2285,8 +2325,22 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
         }}>
           {[1, 2, 3, 4, 5].map(i => {
             const d = completed[i] || {};
-            const firstLine = (d.body || "").split("\n").find(l => l.trim()) || "";
-            const q = d.quote || d.title || firstLine || "—";
+            const parts = splitTitleBodyText(d.body || "");
+            let q = d.quote || d.title || parts.title || "—";
+            
+            // 앞뒤 띄어쓰기 및 따옴표 제거
+            q = q.trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, "");
+            
+            // 만약 q 안에 줄바꿈이 있다면 첫 줄만 명언으로 취급
+            if (q.includes("\n")) {
+              q = q.split("\n")[0].trim();
+            }
+            
+            // 만약 줄바꿈 없이 스토리가 한 줄로 길게 들어간 경우, 첫 문장만 추출
+            const sentences = q.split(". ");
+            if (sentences.length > 1 && q.length > 60) {
+              q = sentences[0] + (sentences[0].endsWith(".") ? "" : ".");
+            }
             const pa = String((i - 1) * 2 + 1).padStart(3, "0");
             return (
               <div key={i}>
@@ -2323,16 +2377,16 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
             gap: "0.4em"
           }}>
             <span style={{
-              fontSize: "90px",
-              letterSpacing: "0.4em",
+              fontSize: isEn ? "70px" : "90px",
+              letterSpacing: isEn ? "0.2em" : "0.4em",
               color: "var(--ink, #2b1d13)",
               fontFamily: "var(--font-serif, serif)",
               fontWeight: 600,
               whiteSpace: "nowrap"
             }}>
-              {T ? T.nameKo : ""}
+              {T ? (isEn ? T.name.toUpperCase() : T.nameKo) : ""}
             </span>
-            {T && T.name ? (
+            {T && !isEn && T.name ? (
               <span style={{
                 fontSize: "32px",
                 letterSpacing: "0.4em",
@@ -2353,7 +2407,8 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
             }}>
               {(() => {
                 const b = (completed && [1, 2, 3, 4, 5].map(i => completed[i] && completed[i].book).find(Boolean)) || 1;
-                return String(b).replace(/권$/, "") + "권";
+                const bNum = String(b).replace(/권$/, "");
+                return isEn ? `Vol. ${bNum}` : `${bNum}권`;
               })()}
             </span>
           </div>
@@ -2509,21 +2564,18 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
                     )}
                   </div>
                   <div className="cs-right">
-                    <div className="text-title book-title-strong">
-                      <span className="title-quote">"{cardTitle}"</span>
-                    </div>
-                    {noAutoFit || fixedBodyFontSize ? (
-                      <div className="text-body-wrap">
-                        <div
-                          className={"text-body " + (fixedBodyFontSize ? "fixed-body-size" : "no-autofit")}
-                          style={fixedBodyFontSize ? { "--fixed-body-font-size": fixedBodyFontSize + "px" } : undefined}
-                        >
-                          {bodyText || "(이 페이지의 본문이 아직 작성되지 않았습니다.)"}
-                        </div>
+                    <div className="text-body-wrap">
+                      <div className="text-body" style={{ fontSize: "22px" }}>
+                        <div style={{
+                          fontWeight: 800,
+                          fontSize: "24px",
+                          marginBottom: "0.5em",
+                          paddingBottom: "0.3em",
+                          borderBottom: "1px solid var(--rule)"
+                        }}>"{cardTitle}"</div>
+                        {bodyText || "(이 페이지의 본문이 아직 작성되지 않았습니다.)"}
                       </div>
-                    ) : (
-                      <AutoFitBody text={bodyText} />
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>

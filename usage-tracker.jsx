@@ -136,7 +136,7 @@ function QuotePicker(props) {
 "${quote.trim()}"
 한국어 **정확히 7문장**, 총 **150자 이내**로 짧게 (한 문장 한 줄)
 명언을 직접 인용하거나 반복 설명하지 말고,
-이야기로 명언의 진실을 드러낼 것
+이야기로 쉽게 공감되는 내용으로 명언의 진실을 드러낼 것
 감동적이고 깨닫게 하는 내용의 스토리로 구성`;
     await copyToClipboard(text, setCopied);
   };
@@ -145,7 +145,8 @@ function QuotePicker(props) {
   const onCopyComicPrompt = async () => {
     if (!quote.trim()) return;
     const hero = heroName || "오둥이";
-    const text = `주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
+    const text = `위의 내용을 기반으로
+주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
 "${quote.trim()}"
 위의 내용으로 4컷만화 발단-전개-위기-결말로 스토리를 만들어줘`;
     await copyToClipboard(text, setCopiedComic);
@@ -155,9 +156,10 @@ function QuotePicker(props) {
   const onCopyImagePrompt = async () => {
     if (!quote.trim()) return;
     const hero = heroName || "오둥이";
-    const text = `주인공은 ${hero}이다. ${hero}를 이 철학 이야기의 중심 인물로 설정한다.
+    const text = `주인공은 ${hero}이다.
 "${quote.trim()}"
-구체적인 배경, 시간대, 빛의 표현, 상세한 카메라뷰와 구도, 얕은 심도(포커싱, 아웃포커싱 확실히 구분)로 구성한 정지컷 설명해줘`;
+위의 명언의 의미를 담아, 해당 캐릭터를 넣은 정지컷 하나를 설명해 줘.
+구체적인 배경, 시간대, 상황 연출을 구체적인 이미지 프롬프트를 생성해 줘.`;
     await copyToClipboard(text, setCopiedImg);
   };
 
