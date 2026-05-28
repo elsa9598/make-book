@@ -116,6 +116,36 @@ function RecoveryPanel({ completed, setCompleted, setToast, bookNo, onChangeBook
       const snap = await res.json();
       if (!snap || typeof snap !== "object") throw new Error("데이터 형식이 올바르지 않습니다.");
       
+      // [autosaved-image]를 실제 디스크 이미지로 복원
+      const fetchBase64 = async (name) => {
+        for (const ext of [".png", ".jpg", ".jpeg"]) {
+          try {
+            const r = await fetch(`/pages/${encodeURIComponent(tName)}/${padBook}권/autosave/${name}${ext}`);
+            if (r.ok) {
+              const b = await r.blob();
+              return await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); });
+            }
+          } catch(e) {}
+        }
+        return null;
+      };
+
+      if (snap.comicImg === "[autosaved-image]") {
+        const curSp = window.BOOK_SPREADS[snap.currentSpread];
+        if (curSp) snap.comicImg = (await fetchBase64(String(curSp.leftPage).padStart(3,"0")+"_a")) || snap.comicImg;
+      }
+      if (snap.illustImg === "[autosaved-image]") {
+        const curSp = window.BOOK_SPREADS[snap.currentSpread];
+        if (curSp) snap.illustImg = (await fetchBase64(String(curSp.rightPage).padStart(3,"0")+"_b")) || snap.illustImg;
+      }
+      for (const k of Object.keys(snap.completed || {})) {
+        const d = snap.completed[k];
+        const sp = window.BOOK_SPREADS[k];
+        if (!sp) continue;
+        if (d.comicImg === "[autosaved-image]") d.comicImg = (await fetchBase64(String(sp.leftPage).padStart(3,"0")+"_a")) || d.comicImg;
+        if (d.illustImg === "[autosaved-image]") d.illustImg = (await fetchBase64(String(sp.rightPage).padStart(3,"0")+"_b")) || d.illustImg;
+      }
+
       const key = window.QuoteLedger.workspaceKey(topic, bookNo);
       await window.ArtbookStore.set(key, snap);
       if (window.restoreCurrentWorkspace) await window.restoreCurrentWorkspace();
