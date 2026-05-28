@@ -2339,9 +2339,23 @@ function A4Side({ slot, folio, side, T, topic, completed, oduniImg, lang, noAuto
                 color: "var(--ink-muted, #6b5440)",
                 fontFamily: "var(--font-serif, serif)",
                 textTransform: "uppercase",
-                opacity: 0.7
+                opacity: 1,
+                fontWeight: 800
               }}>{T.name}</span>
             ) : null}
+            <span style={{
+              fontSize: "24px",
+              letterSpacing: "0.2em",
+              color: "var(--ink-muted, #6b5440)",
+              fontFamily: "var(--font-serif, serif)",
+              marginTop: "12px",
+              fontWeight: 600
+            }}>
+              {(() => {
+                const b = (completed && [1, 2, 3, 4, 5].map(i => completed[i] && completed[i].book).find(Boolean)) || 1;
+                return String(b).replace(/권$/, "") + "권";
+              })()}
+            </span>
           </div>
           <span style={{
             fontSize: "120px",
