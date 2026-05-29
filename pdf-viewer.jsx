@@ -6,8 +6,19 @@ window.PdfViewer = function PdfViewer({ currentTopic, onChangeTopic }) {
   const [selectedBook, setSelectedBook] = useStatePdf(null);
   const [files, setFiles] = useStatePdf([]);
   const [loading, setLoading] = useStatePdf(false);
+  const [bookStats, setBookStats] = useStatePdf({});
 
   const T = window.TOPICS[activeTab];
+
+  useEffectPdf(() => {
+    fetch(`/api/book-stats?topic=${encodeURIComponent(T?.nameKo || activeTab)}`)
+      .then(r => r.json())
+      .then(d => setBookStats(d.stats || {}))
+      .catch(e => {
+        console.error("Failed to fetch book stats", e);
+        setBookStats({});
+      });
+  }, [activeTab]);
 
   useEffectPdf(() => {
     if (selectedBook) {
@@ -118,15 +129,17 @@ window.PdfViewer = function PdfViewer({ currentTopic, onChangeTopic }) {
           </div>
           <div style={{ padding: 16, overflowY: "auto", flex: 1 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(70px, 1fr))", gap: 8 }}>
-              {Array.from({ length: window.QuoteLedger.SERIES_BOOKS }, (_, i) => i + 1).map(b => (
+              {Array.from({ length: window.QuoteLedger.SERIES_BOOKS }, (_, i) => i + 1).map(b => {
+                const isComplete = bookStats[b] >= 8;
+                return (
                 <button 
                   key={b}
                   onClick={() => setSelectedBook(b)}
                   style={{
                     padding: "8px 4px",
-                    background: selectedBook === b ? "#2a221a" : "#fffbfa",
-                    color: selectedBook === b ? "#f6ecd6" : "#2a221a",
-                    border: "1px solid #c7b48c",
+                    background: selectedBook === b ? (isComplete ? "#27633b" : "#2a221a") : (isComplete ? "#e8f2ec" : "#fffbfa"),
+                    color: selectedBook === b ? "#ffffff" : (isComplete ? "#27633b" : "#2a221a"),
+                    border: isComplete ? "1px solid #27633b" : "1px solid #c7b48c",
                     borderRadius: 4,
                     cursor: "pointer",
                     fontFamily: "var(--font-ui)",
@@ -136,7 +149,7 @@ window.PdfViewer = function PdfViewer({ currentTopic, onChangeTopic }) {
                 >
                   {b}권
                 </button>
-              ))}
+              )})}
             </div>
           </div>
         </div>

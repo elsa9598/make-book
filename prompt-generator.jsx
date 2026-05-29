@@ -441,7 +441,7 @@ function PromptGeneratorPage({ mode, ctx, onBack }) {
               placeholder="추가 캐릭터/설정 (영문 권장)"
               value={customChars}
               onChange={e => setCustomChars(e.target.value)}
-              rows={2}
+              rows={6}
             />
           </PromptSection>
 

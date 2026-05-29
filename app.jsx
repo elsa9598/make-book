@@ -259,9 +259,9 @@ function App() {
       ? String(curSp.leftPage).padStart(3, "0") + "_a"
       : String(curSp.rightPage).padStart(3, "0") + "_b";
     try {
-      await saveBookFiles([{ id, files: [{ sub: "autosave", name: id + "." + img.ext, b64: img.b64 }] }]);
       const padBook = String(bookNo).padStart(3, "0");
       const tName = window.TOPICS[topic] ? window.TOPICS[topic].nameKo : topic;
+      await postAutosaveFiles({ topicLabel: tName, bookLabel: padBook + "권" }, [{ id: "", files: [{ sub: "autosave", name: id + "." + img.ext, b64: img.b64 }] }]);
       return `/pages/${encodeURIComponent(tName)}/${padBook}권/autosave/${id}.${img.ext}?t=${Date.now()}`;
     } catch(e) {
       console.warn("[image-backup] 저장 실패:", e.message);

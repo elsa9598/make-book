@@ -112,8 +112,17 @@ function savePage(req, res) {
             if (typeof f.text === "string") fs.writeFileSync(full, f.text, "utf8");
             else if (f.b64) fs.writeFileSync(full, Buffer.from(f.b64, "base64"));
             else if (f.copyFrom) {
-              const srcPath = path.join(ROOT, path.normalize(decodeURIComponent(f.copyFrom.split("?")[0])));
-              if (fs.existsSync(srcPath) && srcPath !== full) fs.copyFileSync(srcPath, full);
+              const decoded = decodeURIComponent(f.copyFrom.split("?")[0]);
+              const srcPath = decoded.startsWith("/pages/") 
+                ? path.join(PAGES_DIR, decoded.slice(7)) 
+                : path.join(ROOT, path.normalize(decoded));
+              console.log("[savePage] copyFrom srcPath:", srcPath, "exists:", fs.existsSync(srcPath), "to:", full);
+              if (fs.existsSync(srcPath) && srcPath !== full) {
+                fs.copyFileSync(srcPath, full);
+                console.log("[savePage] copied successfully");
+              } else {
+                console.log("[savePage] copy failed or skipped");
+              }
             }
             else return;
             written.push(path.relative(ROOT, full));
@@ -141,7 +150,10 @@ function savePage(req, res) {
           if (typeof f.text === "string") fs.writeFileSync(full, f.text, "utf8");
           else if (f.b64) fs.writeFileSync(full, Buffer.from(f.b64, "base64"));
           else if (f.copyFrom) {
-            const srcPath = path.join(ROOT, path.normalize(decodeURIComponent(f.copyFrom.split("?")[0])));
+            const decoded = decodeURIComponent(f.copyFrom.split("?")[0]);
+            const srcPath = decoded.startsWith("/pages/") 
+              ? path.join(PAGES_DIR, decoded.slice(7)) 
+              : path.join(ROOT, path.normalize(decoded));
             if (fs.existsSync(srcPath) && srcPath !== full) fs.copyFileSync(srcPath, full);
           }
           else return;
@@ -229,6 +241,43 @@ const server = http.createServer((req, res) => {
       }
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       return res.end(JSON.stringify({ files }));
+    } catch(e) {
+      res.writeHead(500); return res.end(e.message);
+    }
+  }
+  if (req.url.split("?")[0] === "/api/book-stats" && req.method === "GET") {
+    try {
+      const urlObj = new URL(req.url, `http://${req.headers.host}`);
+      const topic = urlObj.searchParams.get("topic");
+      if (!topic) {
+        res.writeHead(400); return res.end("Missing topic");
+      }
+      const topicDir = path.join(PAGES_DIR, safeName(topic));
+      const stats = {};
+      if (fs.existsSync(topicDir)) {
+        const books = fs.readdirSync(topicDir).filter(b => fs.statSync(path.join(topicDir, b)).isDirectory() && b.endsWith("권"));
+        for (const b of books) {
+          const bNum = parseInt(b, 10);
+          if (isNaN(bNum)) continue;
+          const pdfDir = path.join(topicDir, b, "pdf");
+          if (fs.existsSync(pdfDir)) {
+            const files = fs.readdirSync(pdfDir).filter(f => fs.statSync(path.join(pdfDir, f)).isFile());
+            // Filter only the relevant files (pdf and spread pngs)
+            let validCount = 0;
+            files.forEach(f => {
+              const lower = f.toLowerCase();
+              if (lower.includes("16p") || lower.includes("카드") || lower.includes("card") || lower.includes("출력용") || lower.includes("인쇄") || lower.includes("스프레드") || lower.includes("spread")) {
+                validCount++;
+              }
+            });
+            stats[bNum] = validCount;
+          } else {
+            stats[bNum] = 0;
+          }
+        }
+      }
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      return res.end(JSON.stringify({ stats }));
     } catch(e) {
       res.writeHead(500); return res.end(e.message);
     }

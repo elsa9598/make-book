@@ -322,6 +322,8 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
   const [printExportData, setPrintExportData] = useStateBV(null);
   const [printLang, setPrintLang] = useStateBV("ko");
   const [workImageBusy, setWorkImageBusy] = useStateBV(false);
+  const printPoRef = useRefBV(null);
+  const workImagePoRef = useRefBV(null);
 
   const waitForRender = async () => {
     await new Promise(r => setTimeout(r, 0));
@@ -356,9 +358,9 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
         await waitForRender();
       }
 
-      const po = document.querySelector(".book-structure-print-only");
+      const po = printPoRef.current || document.querySelector(".book-structure-print-only");
       if (!po) {
-        alert("책 구조 출력 DOM을 찾지 못했습니다.");
+        alert("책 구조 출력 DOM을 찾지 못했습니다. React 렌더링 지연 문제일 수 있습니다.");
         return;
       }
 
@@ -462,7 +464,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       }
       await waitForRender();
       await new Promise(r => setTimeout(r, EN ? 300 : 150));
-      const po = document.querySelector(".book-structure-work-image-only");
+      const po = workImagePoRef.current || document.querySelector(".book-structure-work-image-only");
       if (!po) return;
       const prevStyle = po.getAttribute("style") || "";
       const W = 1980, H = 1400;
@@ -605,7 +607,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
             : "인쇄용 PDF / 작업본문 이미지 (4개 파일 일괄 생성)")}
         </button>
       </div>
-      <div className="print-impose-only book-structure-print-only">
+      <div ref={printPoRef} className="print-impose-only book-structure-print-only">
         {BOOKLET_IMPOSITION.map((layout, i) => (
           <div key={"book-structure-a4-" + i} className="a4-page" style={{
             display: "flex", flexDirection: "row", background: PRINT_PAPER,
@@ -623,7 +625,7 @@ function BookGrid({ spreads, completed, onPickSpread, onOpenPreview, topic, cove
       </div>
 
       {workImageBusy && (
-        <div className="book-structure-work-image-only" style={{ display: "none" }}>
+        <div ref={workImagePoRef} className="book-structure-work-image-only" style={{ display: "none" }}>
           {BOOKLET_READING_SPREADS.slice(3, 8).map((layout, i) => (
             <div key={"work-img-" + i} className="a4-page">
               <A4Side slot={layout.left.slot} folio={layout.left.folio} side="left" T={T} topic={bookTopic}
